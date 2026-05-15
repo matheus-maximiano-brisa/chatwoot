@@ -252,7 +252,7 @@ Cada fase gera um change independente e testável.
 
 ---
 
-### Fase 2 — Remover gates de licenciamento do SAML no backend
+### Fase 2 — Remover gates de licenciamento do SAML no backend ✅
 
 **Objetivo:** SAML sempre disponível em `allowed_login_methods`, sem dependência de `pricing_plan` ou `ENABLE_SAML_SSO_LOGIN`.
 
@@ -267,7 +267,7 @@ Cada fase gera um change independente e testável.
 
 ---
 
-### Fase 3 — Remover paywall SAML no frontend
+### Fase 3 — Remover paywall SAML no frontend ✅
 
 **Objetivo:** A tela de configuração SAML (`Settings > Security`) exibe o formulário diretamente, sem paywall.
 
