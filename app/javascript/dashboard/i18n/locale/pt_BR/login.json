@@ -27,7 +27,7 @@
       "LABEL": "Login via SSO",
       "TITLE": "Iniciar Single Sign-on (SSO)",
       "SUBTITLE": "Digite seu e-mail de trabalho para acessar sua organização",
-      "BACK_TO_LOGIN": "Login com senha",
+      "BACK_TO_LOGIN": "Voltar",
       "WORK_EMAIL": {
         "LABEL": "E-mail de trabalho",
         "PLACEHOLDER": "Digite seu e-mail de trabalho"

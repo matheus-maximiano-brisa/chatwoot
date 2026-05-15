@@ -283,14 +283,13 @@ Cada fase gera um change independente e testável.
 
 ---
 
-### Fase 4 — Controle de login por ambiente (`DISABLE_EMAIL_LOGIN`)
+### Fase 4 — Controle de login por ambiente (`DISABLE_EMAIL_LOGIN`) ✅
 
 **Objetivo:** Quando `DISABLE_EMAIL_LOGIN=true`, a tela de login exibe apenas o botão SSO, ocultando o formulário email/senha.
 
 **Arquivos:**
-- `config/installation_config.yml` — adicionar entrada `DISABLE_EMAIL_LOGIN` como boolean, padrão `false`
-- `app/controllers/dashboard_controller.rb` — em `allowed_login_methods`, condicionar inclusão de `'email'` com base no valor da config
-- `app/javascript/v3/views/login/Index.vue` — adicionar computed `showEmailLogin` e envolver o form de email/senha em `v-if="showEmailLogin"`
+- `app/controllers/dashboard_controller.rb` — em `allowed_login_methods`, condicionar inclusão de `'email'` via `ENV.fetch('DISABLE_EMAIL_LOGIN', 'false') == 'true'` (variável de deploy lida diretamente do ambiente, não armazenada no banco)
+- `app/javascript/v3/views/login/Index.vue` — adicionar computed `showEmailLogin` e envolver o form de email/senha e o divider em `<template v-if="showEmailLogin">`
 
 **Regras de negócio:** RN-001
 
@@ -374,7 +373,7 @@ O painel Super Admin (`SuperAdmin::Devise::SessionsController`) autentica sempre
 
 | Variável | Padrão | Descrição |
 |---|---|---|
-| `DISABLE_EMAIL_LOGIN` | `false` | Quando `true`, remove email/senha de `allowed_login_methods` e oculta formulário de onboarding/login |
+| `DISABLE_EMAIL_LOGIN` | `false` | Quando `true`, remove email/senha de `allowed_login_methods` e oculta formulário de login. Lida via `ENV.fetch` diretamente — **não** gerenciada via Super Admin. |
 | `FRONTEND_URL` | `http://localhost:3000` | Base URL usada para montar ACS URL e SP Entity ID. Deve ser HTTPS público em produção |
 | `ENABLE_SAML_SSO_LOGIN` | — | **Removida** nesta implementação — SAML sempre ativo |
 
