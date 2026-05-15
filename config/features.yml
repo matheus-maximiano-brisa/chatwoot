@@ -203,7 +203,7 @@
   chatwoot_internal: true
 - name: saml
   display_name: SAML
-  enabled: false
+  enabled: true
   premium: true
 - name: advanced_search_indexing
   display_name: Advanced Search Indexing
