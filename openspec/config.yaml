@@ -1,0 +1,29 @@
+schema: spec-driven
+context: |
+  Idioma obrigatorio: todos os artefatos OpenSpec (proposal, design, specs, tasks, review notes) devem ser escritos em portugues do Brasil (pt-BR).
+  Projeto: Chatwoot (monolito Rails + frontend Vue 3), com execucao local principal via Overmind/Procfile.dev.
+  Arquitetura com overlay Enterprise: mudancas em codigo core devem sempre avaliar impacto/compatibilidade com a pasta enterprise/.
+  Foco dos artefatos: entregas MVP, incrementais e testaveis, com clareza de escopo e sem sobreengenharia.
+  Frontend: preferir areas ativas do produto (ex.: components-next para bubbles de mensagem) ao propor mudancas de UI.
+  Traducoes: quando houver impacto de i18n, considerar en.yml (backend) e en.json (frontend) como fontes canonicas.
+
+rules:
+  proposal:
+    - Escrever em pt-BR.
+    - Explicar problema, objetivo, escopo (in/out) e impacto no usuario.
+    - Incluir secao "Impacto OSS vs Enterprise" quando tocar funcionalidades core.
+
+  design:
+    - Escrever em pt-BR.
+    - Documentar estado atual, proposta, trade-offs e riscos.
+    - Explicitar pontos de extensao/override para evitar divergencia entre app/ e enterprise/.
+
+  specs:
+    - Escrever em pt-BR.
+    - Definir requisitos testaveis com criterios de aceite observaveis.
+    - Manter contratos estaveis (API/fluxo) e registrar compatibilidade retroativa quando necessario.
+
+  tasks:
+    - Escrever em pt-BR.
+    - Quebrar em passos pequenos, independentes e verificaveis.
+    - Incluir validacao objetiva por tarefa (ex.: comando de teste/lint aplicavel ou evidencia funcional esperada).
