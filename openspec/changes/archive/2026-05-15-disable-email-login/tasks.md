@@ -11,6 +11,6 @@
 
 ## 3. Verificação manual
 
-- [ ] 3.1 Com `DISABLE_EMAIL_LOGIN=false` (padrão): confirmar que a tela de login exibe formulário email/senha, botão SSO e divider normalmente
-- [ ] 3.2 Com `DISABLE_EMAIL_LOGIN=true`: confirmar que apenas o botão SSO é exibido (formulário e divider ausentes)
-- [ ] 3.3 Confirmar que `/app/login/sso` permanece acessível diretamente em ambos os casos
+- [x] 3.1 Com `DISABLE_EMAIL_LOGIN=false` (padrão): confirmar que a tela de login exibe formulário email/senha, botão SSO e divider normalmente
+- [x] 3.2 Com `DISABLE_EMAIL_LOGIN=true`: confirmar que apenas o botão SSO é exibido (formulário e divider ausentes)
+- [x] 3.3 Confirmar que `/app/login/sso` permanece acessível diretamente em ambos os casos
