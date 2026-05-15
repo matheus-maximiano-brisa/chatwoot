@@ -92,7 +92,8 @@ class DashboardController < ActionController::Base
   end
 
   def allowed_login_methods
-    methods = ['email']
+    methods = []
+    methods << 'email' unless ENV.fetch('DISABLE_EMAIL_LOGIN', 'false') == 'true'
     methods << 'google_oauth' if GlobalConfigService.load('ENABLE_GOOGLE_OAUTH_LOGIN', 'true').to_s != 'false'
     methods << 'saml'
     methods
