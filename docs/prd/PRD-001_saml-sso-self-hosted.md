@@ -235,7 +235,7 @@ Cada fase gera um change independente e testável.
 
 ---
 
-### Fase 1 — Habilitar feature SAML por padrão em todas as contas
+### Fase 1 — Habilitar feature SAML por padrão em todas as contas ✅
 
 **Objetivo:** Toda conta (nova ou existente) nasce com `feature_enabled?('saml') == true`.
 
