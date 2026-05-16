@@ -7,7 +7,7 @@ Permite que instalações self-hosted removam o formulário de email/senha da te
 ## Requirements
 
 ### Requirement: Email ausente de allowed_login_methods quando DISABLE_EMAIL_LOGIN=true
-O sistema SHALL excluir `'email'` do array `allowed_login_methods` quando a config `DISABLE_EMAIL_LOGIN` estiver definida como `true`.
+O sistema SHALL excluir `'email'` do array `allowed_login_methods` quando a config `DISABLE_EMAIL_LOGIN` estiver definida como `true`, limitando essa desativação ao login do app principal e preservando o onboarding de instalação e o acesso ao `/super_admin`.
 
 #### Scenario: Email removido com DISABLE_EMAIL_LOGIN=true
 - **WHEN** `DISABLE_EMAIL_LOGIN` está configurado como `true` na instalação
@@ -18,6 +18,11 @@ O sistema SHALL excluir `'email'` do array `allowed_login_methods` quando a conf
 - **WHEN** `DISABLE_EMAIL_LOGIN` está ausente ou configurado como `false`
 - **THEN** `DashboardController#allowed_login_methods` retorna array contendo `'email'`
 - **AND** comportamento atual é idêntico ao estado anterior a esta mudança
+
+#### Scenario: Desativação de email no app principal não remove senha do onboarding
+- **WHEN** `DISABLE_EMAIL_LOGIN=true`
+- **THEN** o onboarding de instalação em `/installation/onboarding` continua exibindo campo `Password` obrigatório
+- **AND** o acesso ao `/super_admin` permanece baseado em email+senha
 
 ### Requirement: Formulário de email/senha oculto na tela de login quando email desabilitado
 O sistema SHALL ocultar o formulário de email/senha e o divider na tela de login quando `'email'` não estiver presente em `allowedLoginMethods`.
