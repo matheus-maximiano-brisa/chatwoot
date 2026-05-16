@@ -57,6 +57,11 @@
                 <div class="mt-1">
                   <%= password_field :user, :password, placeholder: "Enter a password with 6 characters or more.", required: true, class: "block w-full rounded-md border-0 px-3 py-3 appearance-none shadow-sm ring-1 ring-inset text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-woot-500 sm:text-sm sm:leading-6 outline-none dark:bg-slate-700 dark:ring-slate-600 dark:focus:ring-woot-500 ring-slate-200" %>
                 </div>
+                <% if ENV.fetch('DISABLE_EMAIL_LOGIN', 'false') == 'true' %>
+                  <p class="mt-2 text-xs text-slate-600 dark:text-slate-300">
+                    Esta senha e utilizada exclusivamente para acesso ao painel de administracao do sistema (<code>/super_admin</code>). O login no aplicativo sera feito via SSO.
+                  </p>
+                <% end %>
               </div>
 
               <div class="text-sm text-slate-900">

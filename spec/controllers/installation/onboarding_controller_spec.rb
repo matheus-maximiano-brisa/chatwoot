@@ -19,6 +19,29 @@ RSpec.describe 'Installation::Onboarding API', type: :request do
         expect(response).to have_http_status(:success)
         Redis::Alfred.delete(Redis::Alfred::CHATWOOT_INSTALLATION_ONBOARDING)
       end
+
+      it 'shows the password context note when DISABLE_EMAIL_LOGIN=true' do
+        Redis::Alfred.set(Redis::Alfred::CHATWOOT_INSTALLATION_ONBOARDING, true)
+
+        with_modified_env DISABLE_EMAIL_LOGIN: 'true' do
+          get '/installation/onboarding'
+          expect(response.body).to include('/super_admin')
+          expect(response.body).to include('O login no aplicativo sera feito via SSO.')
+        end
+      ensure
+        Redis::Alfred.delete(Redis::Alfred::CHATWOOT_INSTALLATION_ONBOARDING)
+      end
+
+      it 'does not show the password context note when DISABLE_EMAIL_LOGIN=false' do
+        Redis::Alfred.set(Redis::Alfred::CHATWOOT_INSTALLATION_ONBOARDING, true)
+
+        with_modified_env DISABLE_EMAIL_LOGIN: 'false' do
+          get '/installation/onboarding'
+          expect(response.body).not_to include('O login no aplicativo sera feito via SSO.')
+        end
+      ensure
+        Redis::Alfred.delete(Redis::Alfred::CHATWOOT_INSTALLATION_ONBOARDING)
+      end
     end
   end
 
