@@ -300,7 +300,7 @@ Cada fase gera um change independente e testável.
 
 ---
 
-### Fase 5 — Onboarding com senha contextual em ambiente SAML-only
+### Fase 5 — Onboarding com senha contextual em ambiente SAML-only ✅
 
 **Objetivo:** Quando `DISABLE_EMAIL_LOGIN=true`, o formulário de onboarding mantém o campo senha, mas exibe uma nota contextual explicando que ela será usada exclusivamente para acesso ao painel Super Admin (`/super_admin`). O login no aplicativo principal será feito via SSO.
 

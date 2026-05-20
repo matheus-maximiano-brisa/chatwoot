@@ -1,0 +1,1623 @@
+diff --git a/app/controllers/dashboard_controller.rb b/app/controllers/dashboard_controller.rb
+index b6df015f7..21b35a17a 100644
+--- a/app/controllers/dashboard_controller.rb
++++ b/app/controllers/dashboard_controller.rb
+@@ -92,9 +92,10 @@ class DashboardController < ActionController::Base
+   end
+ 
+   def allowed_login_methods
+-    methods = ['email']
++    methods = []
++    methods << 'email' unless ENV.fetch('DISABLE_EMAIL_LOGIN', 'false') == 'true'
+     methods << 'google_oauth' if GlobalConfigService.load('ENABLE_GOOGLE_OAUTH_LOGIN', 'true').to_s != 'false'
+-    methods << 'saml' if ChatwootHub.pricing_plan != 'community' && GlobalConfigService.load('ENABLE_SAML_SSO_LOGIN', 'true').to_s != 'false'
++    methods << 'saml'
+     methods
+   end
+ 
+diff --git a/app/javascript/dashboard/featureFlags.js b/app/javascript/dashboard/featureFlags.js
+index da296bac4..5a26f9c35 100644
+--- a/app/javascript/dashboard/featureFlags.js
++++ b/app/javascript/dashboard/featureFlags.js
+@@ -56,7 +56,6 @@ export const PREMIUM_FEATURES = [
+   FEATURE_FLAGS.CUSTOM_ROLES,
+   FEATURE_FLAGS.AUDIT_LOGS,
+   FEATURE_FLAGS.HELP_CENTER,
+-  FEATURE_FLAGS.SAML,
+   FEATURE_FLAGS.CONVERSATION_REQUIRED_ATTRIBUTES,
+   FEATURE_FLAGS.ADVANCED_ASSIGNMENT,
+ ];
+diff --git a/app/javascript/dashboard/i18n/locale/en/login.json b/app/javascript/dashboard/i18n/locale/en/login.json
+index 061284247..a94267072 100644
+--- a/app/javascript/dashboard/i18n/locale/en/login.json
++++ b/app/javascript/dashboard/i18n/locale/en/login.json
+@@ -27,7 +27,7 @@
+       "LABEL": "Login via SSO",
+       "TITLE": "Initiate Single Sign-on (SSO)",
+       "SUBTITLE": "Enter your work email to access your organization",
+-      "BACK_TO_LOGIN": "Login via Password",
++      "BACK_TO_LOGIN": "Back",
+       "WORK_EMAIL": {
+         "LABEL": "Work Email",
+         "PLACEHOLDER": "Enter your work email"
+diff --git a/app/javascript/dashboard/i18n/locale/pt_BR/login.json b/app/javascript/dashboard/i18n/locale/pt_BR/login.json
+index 08e6f27fe..fce18cd55 100644
+--- a/app/javascript/dashboard/i18n/locale/pt_BR/login.json
++++ b/app/javascript/dashboard/i18n/locale/pt_BR/login.json
+@@ -27,7 +27,7 @@
+       "LABEL": "Login via SSO",
+       "TITLE": "Iniciar Single Sign-on (SSO)",
+       "SUBTITLE": "Digite seu e-mail de trabalho para acessar sua organização",
+-      "BACK_TO_LOGIN": "Login com senha",
++      "BACK_TO_LOGIN": "Voltar",
+       "WORK_EMAIL": {
+         "LABEL": "E-mail de trabalho",
+         "PLACEHOLDER": "Digite seu e-mail de trabalho"
+diff --git a/app/javascript/dashboard/routes/dashboard/settings/security/Index.vue b/app/javascript/dashboard/routes/dashboard/settings/security/Index.vue
+index 4c1ed1902..89c4abc1f 100644
+--- a/app/javascript/dashboard/routes/dashboard/settings/security/Index.vue
++++ b/app/javascript/dashboard/routes/dashboard/settings/security/Index.vue
+@@ -3,12 +3,11 @@ import { computed } from 'vue';
+ import BaseSettingsHeader from '../components/BaseSettingsHeader.vue';
+ import SettingsLayout from '../SettingsLayout.vue';
+ import SamlSettings from './components/SamlSettings.vue';
+-import SamlPaywall from './components/SamlPaywall.vue';
+ 
+ import { usePolicy } from 'dashboard/composables/usePolicy';
+ import { INSTALLATION_TYPES } from 'dashboard/constants/installationTypes';
+ import { FEATURE_FLAGS } from 'dashboard/featureFlags';
+-const { shouldShow, shouldShowPaywall } = usePolicy();
++const { shouldShow } = usePolicy();
+ 
+ const allowedLoginMethods = computed(
+   () => window.chatwootConfig.allowedLoginMethods || ['email']
+@@ -26,8 +25,6 @@ const shouldShowSaml = computed(() => {
+   );
+   return hasPermission && isSamlSsoEnabled.value;
+ });
+-
+-const showPaywall = computed(() => shouldShowPaywall('saml'));
+ </script>
+ 
+ <template>
+@@ -41,8 +38,7 @@ const showPaywall = computed(() => shouldShowPaywall('saml'));
+       />
+     </template>
+     <template #body>
+-      <SamlPaywall v-if="showPaywall" />
+-      <SamlSettings v-else-if="shouldShowSaml" />
++      <SamlSettings v-if="shouldShowSaml" />
+       <div v-else class="mt-6 text-sm text-slate-600">
+         {{ $t('SECURITY_SETTINGS.SAML_DISABLED_MESSAGE') }}
+       </div>
+diff --git a/app/javascript/dashboard/routes/dashboard/settings/security/components/SamlPaywall.vue b/app/javascript/dashboard/routes/dashboard/settings/security/components/SamlPaywall.vue
+deleted file mode 100644
+index b5b0f9ef1..000000000
+--- a/app/javascript/dashboard/routes/dashboard/settings/security/components/SamlPaywall.vue
++++ /dev/null
+@@ -1,41 +0,0 @@
+-<script setup>
+-import { computed } from 'vue';
+-import { useRouter } from 'vue-router';
+-import { useMapGetter } from 'dashboard/composables/store';
+-import { useAccount } from 'dashboard/composables/useAccount';
+-
+-import BasePaywallModal from 'dashboard/routes/dashboard/settings/components/BasePaywallModal.vue';
+-
+-const router = useRouter();
+-const currentUser = useMapGetter('getCurrentUser');
+-
+-const isSuperAdmin = computed(() => {
+-  return currentUser.value.type === 'SuperAdmin';
+-});
+-const { accountId, isOnChatwootCloud } = useAccount();
+-
+-const i18nKey = computed(() =>
+-  isOnChatwootCloud.value ? 'PAYWALL' : 'ENTERPRISE_PAYWALL'
+-);
+-const openBilling = () => {
+-  router.push({
+-    name: 'billing_settings_index',
+-    params: { accountId: accountId.value },
+-  });
+-};
+-</script>
+-
+-<template>
+-  <div
+-    class="w-full max-w-5xl mx-auto h-full max-h-[28rem] grid place-content-center"
+-  >
+-    <BasePaywallModal
+-      class="mx-auto"
+-      feature-prefix="SECURITY_SETTINGS.SAML"
+-      :i18n-key="i18nKey"
+-      :is-super-admin="isSuperAdmin"
+-      :is-on-chatwoot-cloud="isOnChatwootCloud"
+-      @upgrade="openBilling"
+-    />
+-  </div>
+-</template>
+diff --git a/app/javascript/v3/views/login/Index.vue b/app/javascript/v3/views/login/Index.vue
+index 2f8cf70ef..9bf9cf115 100644
+--- a/app/javascript/v3/views/login/Index.vue
++++ b/app/javascript/v3/views/login/Index.vue
+@@ -100,6 +100,9 @@ export default {
+     showSamlLogin() {
+       return this.allowedLoginMethods.includes('saml');
+     },
++    showEmailLogin() {
++      return this.allowedLoginMethods.includes('email');
++    },
+   },
+   created() {
+     if (this.ssoAuthToken) {
+@@ -290,58 +293,60 @@ export default {
+               </span>
+             </router-link>
+           </div>
++        </div>
++        <template v-if="showEmailLogin">
+           <SimpleDivider
+             v-if="showGoogleOAuth || showSamlLogin"
+             :label="$t('COMMON.OR')"
+             class="uppercase"
+           />
+-        </div>
+-        <form class="space-y-5" @submit.prevent="submitFormLogin">
+-          <FormInput
+-            v-model="credentials.email"
+-            name="email_address"
+-            type="text"
+-            data-testid="email_input"
+-            :tabindex="1"
+-            required
+-            :label="$t('LOGIN.EMAIL.LABEL')"
+-            :placeholder="$t('LOGIN.EMAIL.PLACEHOLDER')"
+-            :has-error="v$.credentials.email.$error"
+-            @input="v$.credentials.email.$touch"
+-          />
+-          <FormInput
+-            v-model="credentials.password"
+-            type="password"
+-            name="password"
+-            data-testid="password_input"
+-            required
+-            :tabindex="2"
+-            :label="$t('LOGIN.PASSWORD.LABEL')"
+-            :placeholder="$t('LOGIN.PASSWORD.PLACEHOLDER')"
+-            :has-error="v$.credentials.password.$error"
+-            @input="v$.credentials.password.$touch"
+-          >
+-            <p v-if="!globalConfig.disableUserProfileUpdate">
+-              <router-link
+-                to="auth/reset/password"
+-                class="text-sm text-link"
+-                tabindex="4"
+-              >
+-                {{ $t('LOGIN.FORGOT_PASSWORD') }}
+-              </router-link>
+-            </p>
+-          </FormInput>
+-          <NextButton
+-            lg
+-            type="submit"
+-            data-testid="submit_button"
+-            class="w-full"
+-            :tabindex="3"
+-            :label="$t('LOGIN.SUBMIT')"
+-            :disabled="loginApi.showLoading"
+-            :is-loading="loginApi.showLoading"
+-          />
+-        </form>
++          <form class="space-y-5" @submit.prevent="submitFormLogin">
++            <FormInput
++              v-model="credentials.email"
++              name="email_address"
++              type="text"
++              data-testid="email_input"
++              :tabindex="1"
++              required
++              :label="$t('LOGIN.EMAIL.LABEL')"
++              :placeholder="$t('LOGIN.EMAIL.PLACEHOLDER')"
++              :has-error="v$.credentials.email.$error"
++              @input="v$.credentials.email.$touch"
++            />
++            <FormInput
++              v-model="credentials.password"
++              type="password"
++              name="password"
++              data-testid="password_input"
++              required
++              :tabindex="2"
++              :label="$t('LOGIN.PASSWORD.LABEL')"
++              :placeholder="$t('LOGIN.PASSWORD.PLACEHOLDER')"
++              :has-error="v$.credentials.password.$error"
++              @input="v$.credentials.password.$touch"
++            >
++              <p v-if="!globalConfig.disableUserProfileUpdate">
++                <router-link
++                  to="auth/reset/password"
++                  class="text-sm text-link"
++                  tabindex="4"
++                >
++                  {{ $t('LOGIN.FORGOT_PASSWORD') }}
++                </router-link>
++              </p>
++            </FormInput>
++            <NextButton
++              lg
++              type="submit"
++              data-testid="submit_button"
++              class="w-full"
++              :tabindex="3"
++              :label="$t('LOGIN.SUBMIT')"
++              :disabled="loginApi.showLoading"
++              :is-loading="loginApi.showLoading"
++            />
++          </form>
++        </template>
+       </div>
+       <div v-else class="flex items-center justify-center">
+         <Spinner color-scheme="primary" size="" />
+diff --git a/app/models/installation_config.rb b/app/models/installation_config.rb
+index 19252de50..cfa680ccd 100644
+--- a/app/models/installation_config.rb
++++ b/app/models/installation_config.rb
+@@ -23,7 +23,6 @@ class InstallationConfig < ApplicationRecord
+ 
+   before_validation :set_lock
+   validates :name, presence: true
+-  validate :saml_sso_users_check, if: -> { name == 'ENABLE_SAML_SSO_LOGIN' }
+ 
+   # TODO: Get rid of default scope
+   # https://stackoverflow.com/a/1834250/939299
+@@ -51,11 +50,4 @@ class InstallationConfig < ApplicationRecord
+   def clear_cache
+     GlobalConfig.clear_cache
+   end
+-
+-  def saml_sso_users_check
+-    return unless value == false || value == 'false'
+-    return unless User.exists?(provider: 'saml')
+-
+-    errors.add(:base, 'Cannot disable SAML SSO login while users are using SAML authentication')
+-  end
+ end
+diff --git a/app/models/platform_banner.rb b/app/models/platform_banner.rb
+index b7abeb26b..ef5d39016 100644
+--- a/app/models/platform_banner.rb
++++ b/app/models/platform_banner.rb
+@@ -3,7 +3,7 @@
+ # Table name: platform_banners
+ #
+ #  id             :bigint           not null, primary key
+-#  active         :boolean          default(TRUE)
++#  active         :boolean          default(TRUE), not null
+ #  banner_message :text             not null
+ #  banner_type    :integer          default("info"), not null
+ #  created_at     :datetime         not null
+diff --git a/app/views/installation/onboarding/index.html.erb b/app/views/installation/onboarding/index.html.erb
+index 8b337d16c..af875af64 100644
+--- a/app/views/installation/onboarding/index.html.erb
++++ b/app/views/installation/onboarding/index.html.erb
+@@ -57,6 +57,11 @@
+                 <div class="mt-1">
+                   <%= password_field :user, :password, placeholder: "Enter a password with 6 characters or more.", required: true, class: "block w-full rounded-md border-0 px-3 py-3 appearance-none shadow-sm ring-1 ring-inset text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-woot-500 sm:text-sm sm:leading-6 outline-none dark:bg-slate-700 dark:ring-slate-600 dark:focus:ring-woot-500 ring-slate-200" %>
+                 </div>
++                <% if ENV.fetch('DISABLE_EMAIL_LOGIN', 'false') == 'true' %>
++                  <p class="mt-2 text-xs text-slate-600 dark:text-slate-300">
++                    Esta senha e utilizada exclusivamente para acesso ao painel de administracao do sistema (<code>/super_admin</code>). O login no aplicativo sera feito via SSO.
++                  </p>
++                <% end %>
+               </div>
+ 
+               <div class="text-sm text-slate-900">
+diff --git a/config/features.yml b/config/features.yml
+index 92d004f81..3d27e65c0 100644
+--- a/config/features.yml
++++ b/config/features.yml
+@@ -203,7 +203,7 @@
+   chatwoot_internal: true
+ - name: saml
+   display_name: SAML
+-  enabled: false
++  enabled: true
+   premium: true
+ - name: advanced_search_indexing
+   display_name: Advanced Search Indexing
+diff --git a/config/installation_config.yml b/config/installation_config.yml
+index e374d0948..4b093f53a 100644
+--- a/config/installation_config.yml
++++ b/config/installation_config.yml
+@@ -483,15 +483,6 @@
+   type: boolean
+ ## ------ End of Configs added for Google OAuth ------ ##
+ 
+-## ------ Configs added for SAML SSO ------ ##
+-- name: ENABLE_SAML_SSO_LOGIN
+-  display_title: 'Enable SAML SSO login'
+-  value: true
+-  locked: false
+-  description: 'Show SAML SSO as a login option. Cannot be disabled if any users are using SAML authentication.'
+-  type: boolean
+-## ------ End of Configs added for SAML SSO ------ ##
+-
+ ## ------ Configs added for Cloudflare ------ ##
+ - name: CLOUDFLARE_API_KEY
+   display_title: 'Cloudflare API Key'
+diff --git a/db/migrate/20260515130000_enable_saml_for_all_accounts.rb b/db/migrate/20260515130000_enable_saml_for_all_accounts.rb
+new file mode 100644
+index 000000000..83b46b7b5
+--- /dev/null
++++ b/db/migrate/20260515130000_enable_saml_for_all_accounts.rb
+@@ -0,0 +1,17 @@
++class EnableSamlForAllAccounts < ActiveRecord::Migration[7.1]
++  def up
++    config = InstallationConfig.find_by(name: 'ACCOUNT_LEVEL_FEATURE_DEFAULTS')
++    if config&.value.present?
++      feature = config.value.find { |f| f['name'] == 'saml' }
++      if feature.present?
++        feature['enabled'] = true
++        config.update!(value: config.value)
++        GlobalConfig.clear_cache
++      end
++    end
++
++    Account.find_in_batches(batch_size: 100) do |accounts|
++      accounts.each { |account| account.enable_features!('saml') }
++    end
++  end
++end
+diff --git a/db/schema.rb b/db/schema.rb
+index 1948330e6..239b2b5e5 100644
+--- a/db/schema.rb
++++ b/db/schema.rb
+@@ -10,7 +10,7 @@
+ #
+ # It's strongly recommended that you check this file into your version control system.
+ 
+-ActiveRecord::Schema[7.1].define(version: 2026_05_07_000000) do
++ActiveRecord::Schema[7.1].define(version: 2026_05_15_130000) do
+   # These extensions should be enabled to support this database
+   enable_extension "pg_stat_statements"
+   enable_extension "pg_trgm"
+diff --git a/docs/prd/PRD-001_saml-sso-self-hosted.md b/docs/prd/PRD-001_saml-sso-self-hosted.md
+index 7f8c4bc23..dce2808a3 100644
+--- a/docs/prd/PRD-001_saml-sso-self-hosted.md
++++ b/docs/prd/PRD-001_saml-sso-self-hosted.md
+@@ -235,7 +235,7 @@ Cada fase gera um change independente e testável.
+ 
+ ---
+ 
+-### Fase 1 — Habilitar feature SAML por padrão em todas as contas
++### Fase 1 — Habilitar feature SAML por padrão em todas as contas ✅
+ 
+ **Objetivo:** Toda conta (nova ou existente) nasce com `feature_enabled?('saml') == true`.
+ 
+@@ -252,7 +252,7 @@ Cada fase gera um change independente e testável.
+ 
+ ---
+ 
+-### Fase 2 — Remover gates de licenciamento do SAML no backend
++### Fase 2 — Remover gates de licenciamento do SAML no backend ✅
+ 
+ **Objetivo:** SAML sempre disponível em `allowed_login_methods`, sem dependência de `pricing_plan` ou `ENABLE_SAML_SSO_LOGIN`.
+ 
+@@ -267,7 +267,7 @@ Cada fase gera um change independente e testável.
+ 
+ ---
+ 
+-### Fase 3 — Remover paywall SAML no frontend
++### Fase 3 — Remover paywall SAML no frontend ✅
+ 
+ **Objetivo:** A tela de configuração SAML (`Settings > Security`) exibe o formulário diretamente, sem paywall.
+ 
+@@ -283,14 +283,13 @@ Cada fase gera um change independente e testável.
+ 
+ ---
+ 
+-### Fase 4 — Controle de login por ambiente (`DISABLE_EMAIL_LOGIN`)
++### Fase 4 — Controle de login por ambiente (`DISABLE_EMAIL_LOGIN`) ✅
+ 
+ **Objetivo:** Quando `DISABLE_EMAIL_LOGIN=true`, a tela de login exibe apenas o botão SSO, ocultando o formulário email/senha.
+ 
+ **Arquivos:**
+-- `config/installation_config.yml` — adicionar entrada `DISABLE_EMAIL_LOGIN` como boolean, padrão `false`
+-- `app/controllers/dashboard_controller.rb` — em `allowed_login_methods`, condicionar inclusão de `'email'` com base no valor da config
+-- `app/javascript/v3/views/login/Index.vue` — adicionar computed `showEmailLogin` e envolver o form de email/senha em `v-if="showEmailLogin"`
++- `app/controllers/dashboard_controller.rb` — em `allowed_login_methods`, condicionar inclusão de `'email'` via `ENV.fetch('DISABLE_EMAIL_LOGIN', 'false') == 'true'` (variável de deploy lida diretamente do ambiente, não armazenada no banco)
++- `app/javascript/v3/views/login/Index.vue` — adicionar computed `showEmailLogin` e envolver o form de email/senha e o divider em `<template v-if="showEmailLogin">`
+ 
+ **Regras de negócio:** RN-001
+ 
+@@ -374,7 +373,7 @@ O painel Super Admin (`SuperAdmin::Devise::SessionsController`) autentica sempre
+ 
+ | Variável | Padrão | Descrição |
+ |---|---|---|
+-| `DISABLE_EMAIL_LOGIN` | `false` | Quando `true`, remove email/senha de `allowed_login_methods` e oculta formulário de onboarding/login |
++| `DISABLE_EMAIL_LOGIN` | `false` | Quando `true`, remove email/senha de `allowed_login_methods` e oculta formulário de login. Lida via `ENV.fetch` diretamente — **não** gerenciada via Super Admin. |
+ | `FRONTEND_URL` | `http://localhost:3000` | Base URL usada para montar ACS URL e SP Entity ID. Deve ser HTTPS público em produção |
+ | `ENABLE_SAML_SSO_LOGIN` | — | **Removida** nesta implementação — SAML sempre ativo |
+ 
+diff --git a/enterprise/app/models/captain/document.rb b/enterprise/app/models/captain/document.rb
+index 0fe14813b..d4fb400f5 100644
+--- a/enterprise/app/models/captain/document.rb
++++ b/enterprise/app/models/captain/document.rb
+@@ -4,10 +4,8 @@
+ #
+ #  id                     :bigint           not null, primary key
+ #  content                :text
+-#  content_fingerprint    :string
+ #  external_link          :string           not null
+ #  last_sync_attempted_at :datetime
+-#  last_sync_error_code   :string
+ #  last_synced_at         :datetime
+ #  metadata               :jsonb
+ #  name                   :string
+diff --git a/enterprise/app/models/company.rb b/enterprise/app/models/company.rb
+index 25ba51935..511244faa 100644
+--- a/enterprise/app/models/company.rb
++++ b/enterprise/app/models/company.rb
+@@ -2,17 +2,17 @@
+ #
+ # Table name: companies
+ #
++#  id                    :bigint           not null, primary key
+ #  additional_attributes :jsonb
++#  contacts_count        :integer
+ #  custom_attributes     :jsonb
++#  description           :text
++#  domain                :string
+ #  last_activity_at      :datetime
+-#  id             :bigint           not null, primary key
+-#  contacts_count :integer
+-#  description    :text
+-#  domain         :string
+-#  name           :string           not null
+-#  created_at     :datetime         not null
+-#  updated_at     :datetime         not null
+-#  account_id     :bigint           not null
++#  name                  :string           not null
++#  created_at            :datetime         not null
++#  updated_at            :datetime         not null
++#  account_id            :bigint           not null
+ #
+ # Indexes
+ #
+diff --git a/openspec/changes/archive/2026-05-15-disable-email-login/.openspec.yaml b/openspec/changes/archive/2026-05-15-disable-email-login/.openspec.yaml
+new file mode 100644
+index 000000000..9f7086699
+--- /dev/null
++++ b/openspec/changes/archive/2026-05-15-disable-email-login/.openspec.yaml
+@@ -0,0 +1,2 @@
++schema: spec-driven
++created: 2026-05-15
+diff --git a/openspec/changes/archive/2026-05-15-disable-email-login/design.md b/openspec/changes/archive/2026-05-15-disable-email-login/design.md
+new file mode 100644
+index 000000000..23df266d7
+--- /dev/null
++++ b/openspec/changes/archive/2026-05-15-disable-email-login/design.md
+@@ -0,0 +1,53 @@
++## Context
++
++O `DashboardController#allowed_login_methods` expõe os métodos de autenticação disponíveis via `window.chatwootConfig.allowedLoginMethods`. Hoje `'email'` é sempre incluído incondicionalmente. Instalações self-hosted com SAML SSO como método exclusivo de autenticação não têm como remover o formulário de email/senha da tela de login — o que gera confusão para usuários que não possuem credenciais locais.
++
++A tela de login (`Index.vue`) já consome `allowedLoginMethods` para controlar quais botões OAuth/SAML são exibidos — o mesmo mecanismo pode ser usado para o formulário de email/senha.
++
++## Goals / Non-Goals
++
++**Goals:**
++- Permitir que administradores self-hosted removam o formulário de email/senha da tela de login via `DISABLE_EMAIL_LOGIN=true`
++- Comportamento 100% idêntico ao atual quando `DISABLE_EMAIL_LOGIN=false` (padrão)
++- Remover a config `ENABLE_SAML_SSO_LOGIN` que se tornou código morto após a Fase 2
++
++**Non-Goals:**
++- Migrar `Index.vue` para Composition API (escopo separado)
++- Expor `disableEmailLogin` como chave explícita no `chatwootConfig` (a Fase 5 pode ler de `allowedLoginMethods`)
++- Bloquear autenticação por senha no backend (já existe via `SamlAuthenticationHelper` em `enterprise/`)
++- Qualquer mudança em arquivos `enterprise/`
++
++## Decisions
++
++### 1. Fonte de verdade: `allowedLoginMethods`, não uma chave separada
++
++`'email'` é excluído de `allowed_login_methods` quando `DISABLE_EMAIL_LOGIN=true`. O frontend lê via `allowedLoginMethods.includes('email')`. Não há necessidade de uma chave `disableEmailLogin` redundante no `chatwootConfig` — o array já carrega a informação.
++
++**Alternativa descartada:** expor `disableEmailLogin: true/false` explicitamente. Criaria duas fontes para a mesma informação derivada do mesmo config.
++
++### 2. Backend: `ENV.fetch` direto, sem passar por `InstallationConfig`
++
++```ruby
++methods << 'email' unless ENV.fetch('DISABLE_EMAIL_LOGIN', 'false') == 'true'
++```
++
++`DISABLE_EMAIL_LOGIN` é uma variável de deploy — definida pelo operador no momento do provisionamento, não pelo admin via painel. `GlobalConfigService.load` foi descartado porque cria um registro no banco com `value: false` (default do YAML) via `ConfigLoader`, e a partir daí o ENV é silenciosamente ignorado (o banco tem precedência). `ENV.fetch` é previsível: muda a variável, reinicia o container, mudou.
++
++**Consequência**: `DISABLE_EMAIL_LOGIN` não precisa de entrada em `installation_config.yml` e não aparece no Super Admin — comportamento correto para uma variável de infraestrutura.
++
++**Alternativa descartada:** `GlobalConfigService.load` — confirmado em teste que ignora o ENV quando já existe registro no banco criado pelo `ConfigLoader`.
++
++### 3. Frontend: wrapping semântico `<template v-if="showEmailLogin">`
++
++O `SimpleDivider` e o `<form>` de email/senha são semanticamente um par — o divider só faz sentido se o form existe. Envolvê-los em um `<template v-if="showEmailLogin">` é mais legível do que duas condições separadas e torna o diff auto-explicativo.
++
++**Alternativa descartada:** atualizar só a condição do divider para `v-if="(showGoogleOAuth || showSamlLogin) && showEmailLogin"`. Menos coeso — mantém os dois elementos com lógica independente quando na prática são inseparáveis.
++
++### 4. Remoção de `ENABLE_SAML_SSO_LOGIN`
++
++A config foi tornada código morto pela Fase 2 (SAML sempre presente em `allowed_login_methods`). Aproveitamos a edição do `installation_config.yml` para removê-la seguindo o guideline "remove dead/unreachable/unused code".
++
++## Risks / Trade-offs
++
++- **[Risco] Admin ativa `DISABLE_EMAIL_LOGIN=true` antes de configurar SAML** → fica sem acesso ao app principal. Mitigação: documentar na Fase 6 que `DISABLE_EMAIL_LOGIN` deve ser ativado apenas após SAML funcional. O painel `/super_admin` permanece acessível via email/senha independentemente desta config.
++- **[Trade-off] `allowedLoginMethods` como proxy de `disableEmailLogin`** → se no futuro `'email'` for removido por outro motivo, a Fase 5 (onboarding) receberia o comportamento silenciosamente. Aceitável — o cenário é improvável e o acoplamento é explícito.
+diff --git a/openspec/changes/archive/2026-05-15-disable-email-login/proposal.md b/openspec/changes/archive/2026-05-15-disable-email-login/proposal.md
+new file mode 100644
+index 000000000..423384cd5
+--- /dev/null
++++ b/openspec/changes/archive/2026-05-15-disable-email-login/proposal.md
+@@ -0,0 +1,27 @@
++## Why
++
++Instalações self-hosted que adotam SAML SSO como método exclusivo de autenticação precisam de uma forma de desabilitar o formulário de email/senha na tela de login. Hoje não existe mecanismo para isso: o formulário de email/senha é sempre exibido, o que confunde usuários em ambientes onde o login por senha foi intencionalmente substituído pelo SSO.
++
++## What Changes
++
++- `DISABLE_EMAIL_LOGIN` lida via `ENV.fetch` diretamente no `DashboardController` (variável de deploy, não gerenciada via Super Admin nem armazenada no banco)
++- `allowed_login_methods` no `DashboardController` passa a excluir `'email'` quando `DISABLE_EMAIL_LOGIN=true`
++- Config `ENABLE_SAML_SSO_LOGIN` removida do `installation_config.yml` (tornou-se código morto após SAML ser sempre incluído em `allowed_login_methods`)
++- Tela de login (`Index.vue`) passa a ocultar o formulário email/senha e o divider quando `'email'` não está em `allowedLoginMethods`
++
++## Capabilities
++
++### New Capabilities
++
++- `disable-email-login`: Controla a visibilidade do formulário de email/senha na tela de login via variável de ambiente, permitindo ambientes SAML-only sem exibir formulário de senha inacessível aos usuários.
++
++### Modified Capabilities
++
++- `saml-always-in-login-methods`: Remoção da entrada `ENABLE_SAML_SSO_LOGIN` do `installation_config.yml`, que era a config responsável por esse gate (agora código morto).
++
++## Impact
++
++- **Backend**: `app/controllers/dashboard_controller.rb`, `config/installation_config.yml` (remoção de `ENABLE_SAML_SSO_LOGIN`)
++- **Frontend**: `app/javascript/v3/views/login/Index.vue`
++- **OSS vs Enterprise**: Mudança 100% em código OSS. Nenhum arquivo em `enterprise/` é tocado — a lógica de bloqueio de senha por `provider='saml'` no `SamlAuthenticationHelper` já existe e permanece inalterada.
++- **Compatibilidade**: Com `DISABLE_EMAIL_LOGIN=false` (padrão), comportamento atual é idêntico — zero impacto em instalações que não usam SAML.
+diff --git a/openspec/changes/archive/2026-05-15-disable-email-login/specs/disable-email-login/spec.md b/openspec/changes/archive/2026-05-15-disable-email-login/specs/disable-email-login/spec.md
+new file mode 100644
+index 000000000..d5bf0a560
+--- /dev/null
++++ b/openspec/changes/archive/2026-05-15-disable-email-login/specs/disable-email-login/spec.md
+@@ -0,0 +1,46 @@
++# Capability: disable-email-login
++
++## Purpose
++
++Permite que instalações self-hosted removam o formulário de email/senha da tela de login via variável de ambiente `DISABLE_EMAIL_LOGIN`. Quando ativa, apenas métodos alternativos (SAML SSO, Google OAuth) são exibidos, tornando o ambiente exclusivamente SSO para o app principal.
++
++## Requirements
++
++### Requirement: Email ausente de allowed_login_methods quando DISABLE_EMAIL_LOGIN=true
++O sistema SHALL excluir `'email'` do array `allowed_login_methods` quando a config `DISABLE_EMAIL_LOGIN` estiver definida como `true`.
++
++#### Scenario: Email removido com DISABLE_EMAIL_LOGIN=true
++- **WHEN** `DISABLE_EMAIL_LOGIN` está configurado como `true` na instalação
++- **THEN** `DashboardController#allowed_login_methods` retorna array sem `'email'`
++- **AND** `window.chatwootConfig.allowedLoginMethods` não contém `'email'`
++
++#### Scenario: Email presente com DISABLE_EMAIL_LOGIN=false (padrão)
++- **WHEN** `DISABLE_EMAIL_LOGIN` está ausente ou configurado como `false`
++- **THEN** `DashboardController#allowed_login_methods` retorna array contendo `'email'`
++- **AND** comportamento atual é idêntico ao estado anterior a esta mudança
++
++### Requirement: Formulário de email/senha oculto na tela de login quando email desabilitado
++O sistema SHALL ocultar o formulário de email/senha e o divider na tela de login quando `'email'` não estiver presente em `allowedLoginMethods`.
++
++#### Scenario: Formulário e divider ocultos com email desabilitado
++- **WHEN** `allowedLoginMethods` não contém `'email'`
++- **THEN** o formulário com campos email e senha não é renderizado
++- **AND** o `SimpleDivider` entre os botões OAuth/SAML e o formulário não é renderizado
++
++#### Scenario: Botão SSO permanece visível com email desabilitado
++- **WHEN** `allowedLoginMethods` não contém `'email'`
++- **AND** `allowedLoginMethods` contém `'saml'`
++- **THEN** o botão "Entrar com SSO" é o único elemento de login visível
++
++#### Scenario: Comportamento inalterado quando email habilitado
++- **WHEN** `allowedLoginMethods` contém `'email'`
++- **THEN** formulário de email/senha e divider são renderizados normalmente
++- **AND** nenhuma alteração visual em relação ao estado anterior
++
++### Requirement: Rota SSO acessível independente da config
++O sistema SHALL manter a rota `/app/login/sso` acessível diretamente, independente do valor de `DISABLE_EMAIL_LOGIN`.
++
++#### Scenario: Rota SSO acessível com email desabilitado
++- **WHEN** `DISABLE_EMAIL_LOGIN=true`
++- **THEN** a rota `/app/login/sso` responde normalmente
++- **AND** o formulário de SSO (campo email) é exibido
+diff --git a/openspec/changes/archive/2026-05-15-disable-email-login/specs/saml-always-in-login-methods/spec.md b/openspec/changes/archive/2026-05-15-disable-email-login/specs/saml-always-in-login-methods/spec.md
+new file mode 100644
+index 000000000..e58687b4a
+--- /dev/null
++++ b/openspec/changes/archive/2026-05-15-disable-email-login/specs/saml-always-in-login-methods/spec.md
+@@ -0,0 +1,17 @@
++## MODIFIED Requirements
++
++### Requirement: SAML sempre presente em allowed_login_methods
++O sistema SHALL incluir `'saml'` no array `allowed_login_methods` independentemente de qualquer variável de configuração de licenciamento ou ambiente.
++
++#### Scenario: SAML presente com pricing_plan community
++- **WHEN** `ChatwootHub.pricing_plan` retorna `'community'` (padrão self-hosted)
++- **THEN** `DashboardController#allowed_login_methods` retorna um array contendo `'saml'`
++
++#### Scenario: SAML sempre presente, sem dependência de configuração
++- **WHEN** `allowed_login_methods` é calculado em qualquer instalação
++- **THEN** `DashboardController#allowed_login_methods` retorna um array contendo `'saml'`
++- **AND** nenhuma variável de ambiente ou config de banco pode remover `'saml'` do array
++
++#### Scenario: chatwootConfig reflete SAML no frontend
++- **WHEN** o frontend carrega `window.chatwootConfig`
++- **THEN** `window.chatwootConfig.allowedLoginMethods` inclui `'saml'`
+diff --git a/openspec/changes/archive/2026-05-15-disable-email-login/tasks.md b/openspec/changes/archive/2026-05-15-disable-email-login/tasks.md
+new file mode 100644
+index 000000000..d56be623c
+--- /dev/null
++++ b/openspec/changes/archive/2026-05-15-disable-email-login/tasks.md
+@@ -0,0 +1,16 @@
++## 1. Backend — Configuração e allowed_login_methods
++
++- [x] 1.1 Remover a entrada `ENABLE_SAML_SSO_LOGIN` de `config/installation_config.yml`
++- [x] 1.2 Remover entrada `DISABLE_EMAIL_LOGIN` de `config/installation_config.yml` (variável de deploy lida via ENV, não armazenada no banco)
++- [x] 1.3 Em `DashboardController#allowed_login_methods`, tornar a inclusão de `'email'` condicional via `ENV.fetch('DISABLE_EMAIL_LOGIN', 'false') == 'true'`
++
++## 2. Frontend — Tela de login
++
++- [x] 2.1 Adicionar computed `showEmailLogin` no bloco `computed:` de `Index.vue`: retorna `this.allowedLoginMethods.includes('email')`
++- [x] 2.2 Envolver o `SimpleDivider` e o `<form>` de email/senha em `<template v-if="showEmailLogin">` no template de `Index.vue`
++
++## 3. Verificação manual
++
++- [x] 3.1 Com `DISABLE_EMAIL_LOGIN=false` (padrão): confirmar que a tela de login exibe formulário email/senha, botão SSO e divider normalmente
++- [x] 3.2 Com `DISABLE_EMAIL_LOGIN=true`: confirmar que apenas o botão SSO é exibido (formulário e divider ausentes)
++- [x] 3.3 Confirmar que `/app/login/sso` permanece acessível diretamente em ambos os casos
+diff --git a/openspec/changes/archive/2026-05-15-enable-saml-feature-by-default/.openspec.yaml b/openspec/changes/archive/2026-05-15-enable-saml-feature-by-default/.openspec.yaml
+new file mode 100644
+index 000000000..9f7086699
+--- /dev/null
++++ b/openspec/changes/archive/2026-05-15-enable-saml-feature-by-default/.openspec.yaml
+@@ -0,0 +1,2 @@
++schema: spec-driven
++created: 2026-05-15
+diff --git a/openspec/changes/archive/2026-05-15-enable-saml-feature-by-default/design.md b/openspec/changes/archive/2026-05-15-enable-saml-feature-by-default/design.md
+new file mode 100644
+index 000000000..07340984d
+--- /dev/null
++++ b/openspec/changes/archive/2026-05-15-enable-saml-feature-by-default/design.md
+@@ -0,0 +1,52 @@
++## Context
++
++O Chatwoot usa um bitmap de feature flags (`feature_flags` na tabela `accounts`) controlado pelo concern `Featurable`. As features e seus valores padrão são definidos em `config/features.yml` e propagados para o banco via `InstallationConfig['ACCOUNT_LEVEL_FEATURE_DEFAULTS']` pelo `ConfigLoader`.
++
++Estado atual:
++- `config/features.yml`: `saml { enabled: false, premium: true }`
++- `InstallationConfig['ACCOUNT_LEVEL_FEATURE_DEFAULTS']`: entry `saml` com `enabled: false`
++- Contas existentes: bit `feature_saml` desligado
++
++O `ConfigLoader` opera com `reconcile_only_new: true` por padrão — ele **não retroage** em entradas já existentes no `InstallationConfig`. Por isso, mudar apenas o `features.yml` não é suficiente: é necessária uma migration que atualize explicitamente a entry `saml` no JSON do `InstallationConfig` e também habilite o bit em contas existentes.
++
++O campo `premium: true` no `features.yml` é apenas cosmético (usado pelo Super Admin UI para separar a exibição) e não tem efeito no runtime. Será mantido para minimizar ruído no diff.
++
++O código SAML enterprise (`enterprise/app/models/account_saml_settings.rb`, controllers, builders, helpers) já está correto e **não será tocado**.
++
++## Goals / Non-Goals
++
++**Goals:**
++- Toda conta nova nasce com `feature_enabled?('saml') == true`
++- Toda conta existente passa a ter `feature_enabled?('saml') == true` após rodar a migration
++- `GET /api/v1/accounts/:id` retorna `features: { saml: true }` para todas as contas
++
++**Non-Goals:**
++- Remover gates de `pricing_plan` ou `ENABLE_SAML_SSO_LOGIN` do backend (Fase 2 do PRD-001)
++- Remover SAML de `PREMIUM_FEATURES` no frontend (Fase 3)
++- Adicionar suporte a `DISABLE_EMAIL_LOGIN` (Fase 4)
++- Modificar qualquer arquivo em `enterprise/`
++
++## Decisions
++
++**Decisão 1: Manter `premium: true` em `features.yml`**
++Alternativa considerada: remover o campo. Optou-se por manter para reduzir ruído no diff — o campo é cosmético e sua remoção não agrega valor funcional.
++
++**Decisão 2: Migration única com duas partes (A + B)**
++- Parte A: atualiza a entry `saml` no JSON de `ACCOUNT_LEVEL_FEATURE_DEFAULTS` em `InstallationConfig` + invalida o cache `GlobalConfig`
++- Parte B: itera contas existentes via `find_in_batches(batch_size: 100)` e chama `enable_features!('saml')`
++
++Alternativa considerada: duas migrations separadas. Optou-se por uma única migration para manter atomicidade conceitual e seguir o padrão de migrations recentes do projeto.
++
++**Decisão 3: Sem método `down` na migration**
++Seguindo o padrão de `20260120121402_enable_captain_tasks_for_existing_accounts.rb` e `20260409091202_enable_assignment_v2_for_new_accounts.rb`. Reverter a habilitação de uma feature em produção requer decisão consciente, não rollback automático.
++
++**Decisão 4: Guard silencioso se `ACCOUNT_LEVEL_FEATURE_DEFAULTS` não existir**
++A Parte A é pulada se o config não existir no banco. A Parte B ainda roda. Quando o `ConfigLoader` executar no próximo boot, criará a entry `saml` já como `true` (graças à mudança em `features.yml`).
++
++## Risks / Trade-offs
++
++**[Performance em produção com muitas contas]** → `find_in_batches(batch_size: 100)` mitiga o risco de carregar todas as contas em memória. O padrão já é usado em migrations semelhantes no projeto.
++
++**[Migration idempotente]** → `enable_features!('saml')` seta o bit independentemente do estado anterior. Rodar duas vezes não causa problema.
++
++**[Fases subsequentes dependem desta]** → As Fases 2 e 3 do PRD-001 (remoção de gates e paywall) só fazem efeito completo após esta fase habilitar a feature. A ordem de deploy deve respeitar Fase 1 → Fase 2 → Fase 3.
+diff --git a/openspec/changes/archive/2026-05-15-enable-saml-feature-by-default/proposal.md b/openspec/changes/archive/2026-05-15-enable-saml-feature-by-default/proposal.md
+new file mode 100644
+index 000000000..1933c27f1
+--- /dev/null
++++ b/openspec/changes/archive/2026-05-15-enable-saml-feature-by-default/proposal.md
+@@ -0,0 +1,28 @@
++## Why
++
++O Chatwoot possui implementação completa de SAML SSO na camada Enterprise, mas a feature está desabilitada por padrão em todas as contas (`enabled: false` em `config/features.yml`). Instalações self-hosted que querem usar SAML como método primário de autenticação não conseguem ativar a feature sem intervenção manual no banco ou no painel Super Admin — criando fricção desnecessária e bloqueando as fases seguintes do PRD-001.
++
++## What Changes
++
++- `config/features.yml`: campo `enabled` da feature `saml` alterado de `false` para `true`
++- Nova migration que atualiza `InstallationConfig['ACCOUNT_LEVEL_FEATURE_DEFAULTS']` para refletir `saml: enabled: true`
++- Nova migration que habilita o bit `feature_saml` em todas as contas existentes no banco
++
++## Capabilities
++
++### New Capabilities
++
++- `saml-feature-default`: Garantia de que toda conta (nova ou existente) nasce com a feature `saml` habilitada no bitmap `feature_flags`, sem necessidade de ativação manual
++
++### Modified Capabilities
++
++*(sem mudanças em requisitos de capabilities existentes)*
++
++## Impact
++
++- **`config/features.yml`**: alteração de configuração padrão — impacta novas instalações (banco zerado)
++- **`InstallationConfig['ACCOUNT_LEVEL_FEATURE_DEFAULTS']`**: atualizado via migration — impacta comportamento do `before_create` do model `Account` para novas contas em instalações existentes
++- **`accounts.feature_flags`**: migration de dados — habilita bit `saml` em todas as contas existentes
++- **Sem impacto em `enterprise/`**: nenhum arquivo enterprise é modificado; o código SAML enterprise já está correto e permanece intocado
++- **Sem impacto em API pública**: a feature `saml` já aparece no response de `GET /api/v1/accounts/:id` — apenas o valor muda de `false` para `true`
++- **Sem impacto em frontend**: esta fase não altera paywall nem gates de login — cobertos nas Fases 3 e 4 do PRD-001
+diff --git a/openspec/changes/archive/2026-05-15-enable-saml-feature-by-default/specs/saml-feature-default/spec.md b/openspec/changes/archive/2026-05-15-enable-saml-feature-by-default/specs/saml-feature-default/spec.md
+new file mode 100644
+index 000000000..419cfc262
+--- /dev/null
++++ b/openspec/changes/archive/2026-05-15-enable-saml-feature-by-default/specs/saml-feature-default/spec.md
+@@ -0,0 +1,30 @@
++## ADDED Requirements
++
++### Requirement: Feature SAML habilitada por padrão em novas contas
++O sistema SHALL criar toda nova conta com a feature `saml` habilitada no bitmap `feature_flags`, sem necessidade de ativação manual.
++
++#### Scenario: Nova conta criada após a migration
++- **WHEN** uma nova conta é criada via `AccountBuilder` ou API de plataforma
++- **THEN** `account.feature_enabled?('saml')` retorna `true`
++
++#### Scenario: `GET /api/v1/accounts/:id` reflete o estado da feature
++- **WHEN** a API de conta é consultada para uma conta recém-criada
++- **THEN** o campo `features.saml` no response JSON é `true`
++
++### Requirement: Feature SAML habilitada em contas existentes após migration
++O sistema SHALL habilitar a feature `saml` em todas as contas já existentes no banco quando a migration for executada.
++
++#### Scenario: Migration executada em instalação com contas pré-existentes
++- **WHEN** a migration `enable_saml_for_all_accounts` é executada
++- **THEN** toda conta existente passa a ter `feature_enabled?('saml') == true`
++
++#### Scenario: Migration idempotente
++- **WHEN** a migration é executada mais de uma vez (ex.: re-run acidental)
++- **THEN** nenhum erro é gerado e o estado final permanece `feature_enabled?('saml') == true`
++
++### Requirement: `ACCOUNT_LEVEL_FEATURE_DEFAULTS` reflete `saml: enabled: true`
++O sistema SHALL atualizar a entrada `saml` no `InstallationConfig['ACCOUNT_LEVEL_FEATURE_DEFAULTS']` para `enabled: true`, garantindo que novas contas criadas em instalações existentes também nasçam com a feature habilitada.
++
++#### Scenario: Conta criada em instalação existente após migration
++- **WHEN** uma nova conta é criada em uma instalação onde a migration já foi executada
++- **THEN** `account.feature_enabled?('saml')` retorna `true` (via `enable_default_features` no `before_create`)
+diff --git a/openspec/changes/archive/2026-05-15-enable-saml-feature-by-default/tasks.md b/openspec/changes/archive/2026-05-15-enable-saml-feature-by-default/tasks.md
+new file mode 100644
+index 000000000..eb97e90bd
+--- /dev/null
++++ b/openspec/changes/archive/2026-05-15-enable-saml-feature-by-default/tasks.md
+@@ -0,0 +1,17 @@
++## 1. Configuração padrão de feature
++
++- [x] 1.1 Em `config/features.yml`, alterar `enabled: false` para `enabled: true` na entry `saml` (manter `premium: true`)
++
++## 2. Migration de dados
++
++- [x] 2.1 Gerar nova migration: `bundle exec rails generate migration EnableSamlForAllAccounts`
++- [x] 2.2 Implementar o método `up` da migration:
++  - Parte A: localizar a entry `saml` em `InstallationConfig['ACCOUNT_LEVEL_FEATURE_DEFAULTS']`, setar `enabled: true`, salvar e chamar `GlobalConfig.clear_cache`
++  - Parte B: iterar todas as contas via `Account.find_in_batches(batch_size: 100)` e chamar `account.enable_features!('saml')` em cada uma
++- [x] 2.3 Executar a migration localmente: `bundle exec rails db:migrate`
++
++## 3. Verificação
++
++- [x] 3.1 Verificar em console Rails que `Account.first.feature_enabled?('saml')` retorna `true`
++- [x] 3.2 Verificar que `InstallationConfig.find_by(name: 'ACCOUNT_LEVEL_FEATURE_DEFAULTS').value.find { |f| f['name'] == 'saml' }` retorna `{ 'name' => 'saml', 'enabled' => true, ... }`
++- [x] 3.3 Criar uma nova conta via console e verificar que `account.feature_enabled?('saml')` já nasce `true`
+diff --git a/openspec/changes/archive/2026-05-15-installation-onboarding-password-context/.openspec.yaml b/openspec/changes/archive/2026-05-15-installation-onboarding-password-context/.openspec.yaml
+new file mode 100644
+index 000000000..9f7086699
+--- /dev/null
++++ b/openspec/changes/archive/2026-05-15-installation-onboarding-password-context/.openspec.yaml
+@@ -0,0 +1,2 @@
++schema: spec-driven
++created: 2026-05-15
+diff --git a/openspec/changes/archive/2026-05-15-installation-onboarding-password-context/design.md b/openspec/changes/archive/2026-05-15-installation-onboarding-password-context/design.md
+new file mode 100644
+index 000000000..e0464a789
+--- /dev/null
++++ b/openspec/changes/archive/2026-05-15-installation-onboarding-password-context/design.md
+@@ -0,0 +1,59 @@
++## Context
++
++O fluxo de onboarding de instalacao do Chatwoot e server-rendered em `app/views/installation/onboarding/index.html.erb` e define a senha inicial do usuario `SuperAdmin` via `Installation::OnboardingController` + `AccountBuilder`. Em paralelo, a Fase 4 ja permite ambiente SSO-only no app principal ao remover `'email'` de `allowed_login_methods` quando `DISABLE_EMAIL_LOGIN=true`.
++
++Essa combinacao cria risco de interpretacao: operadores podem entender que senha nao e mais necessaria em ambiente SSO-only, embora o painel `/super_admin` continue autenticando exclusivamente por email+senha (`SuperAdmin::Devise::SessionsController` com `valid_password?`).
++
++## Goals / Non-Goals
++
++**Goals:**
++- Exibir mensagem contextual no onboarding de instalacao quando `DISABLE_EMAIL_LOGIN=true`.
++- Reforcar que a senha do onboarding continua necessaria para acesso ao `/super_admin`.
++- Manter comportamento atual sem alteracoes quando `DISABLE_EMAIL_LOGIN=false`.
++
++**Non-Goals:**
++- Migrar onboarding de instalacao para Vue ou `chatwootConfig`.
++- Alterar regras de autenticacao SAML.
++- Alterar fluxo de autenticacao do `/super_admin`.
++- Introduzir novas variaveis de ambiente, dependencias ou mudancas de banco.
++
++## Decisions
++
++### 1) Fonte de verdade da condicao: `ENV` direto no ERB
++
++**Decisao:** avaliar `DISABLE_EMAIL_LOGIN` com `ENV.fetch('DISABLE_EMAIL_LOGIN', 'false') == 'true'` diretamente no template ERB do onboarding de instalacao.
++
++**Racional:** o fluxo e server-rendered, e a flag representa configuracao de infraestrutura/deploy. Essa abordagem minimiza escopo e evita duplicar estado.
++
++**Alternativa considerada:** expor `disableEmailLogin` em `window.chatwootConfig` e consumir no frontend. Foi descartada por nao trazer ganho para o fluxo atual (nao SPA) e ampliar superficie de mudanca sem necessidade.
++
++### 2) Local da mudanca: somente onboarding de instalacao
++
++**Decisao:** aplicar alteracao exclusivamente em `app/views/installation/onboarding/index.html.erb`, abaixo do campo `Password`.
++
++**Racional:** e o ponto onde a senha e capturada e onde a orientacao precisa aparecer. Evita tocar fluxos nao relacionados.
++
++**Alternativa considerada:** alterar componentes de onboarding do dashboard (`app/javascript/dashboard/routes/dashboard/onboarding/*`). Foi descartada por tratar de onboarding de conta apos login, nao do setup inicial de instalacao.
++
++### 3) Contrato funcional preservado
++
++**Decisao:** manter o campo de senha obrigatorio em todos os cenarios; a nota aparece apenas com `DISABLE_EMAIL_LOGIN=true`.
++
++**Racional:** preserva RN-003 e evita risco de lockout do operador no `/super_admin`.
++
++## Risks / Trade-offs
++
++- **[Risco] Mensagem em pt-BR em tela atualmente em ingles** -> **Mitigacao:** seguir decisao de produto desta conversa para Fase 5; se necessario, normalizar i18n em mudanca futura dedicada.
++- **[Trade-off] Uso de condicional de ambiente no template ERB** -> **Mitigacao:** manter logica simples, explicita e limitada a um trecho de UX, sem ramificacao de regra de negocio.
++- **[Risco] Leitura equivocada de que o app principal aceita senha em SSO-only** -> **Mitigacao:** texto da nota deve explicitar "exclusivamente para `/super_admin`".
++
++## Migration Plan
++
++1. Aplicar condicional no template do onboarding para renderizar a nota apenas em `DISABLE_EMAIL_LOGIN=true`.
++2. Validar manualmente os dois cenarios (`true` e `false`) no onboarding de instalacao.
++3. Validar login no `/super_admin` com credenciais definidas no onboarding.
++4. Rollback, se necessario: remover trecho da nota no template (sem impacto em dados persistidos).
++
++## Open Questions
++
++- Nenhuma pendencia tecnica bloqueante para implementacao MVP.
+diff --git a/openspec/changes/archive/2026-05-15-installation-onboarding-password-context/proposal.md b/openspec/changes/archive/2026-05-15-installation-onboarding-password-context/proposal.md
+new file mode 100644
+index 000000000..935fc839a
+--- /dev/null
++++ b/openspec/changes/archive/2026-05-15-installation-onboarding-password-context/proposal.md
+@@ -0,0 +1,31 @@
++## Why
++
++Na configuracao SSO-only (`DISABLE_EMAIL_LOGIN=true`), o onboarding de instalacao continua exigindo senha, mas nao explica claramente para que ela sera usada. Isso pode levar operadores a interpretar que a senha nao e mais relevante e gerar bloqueio operacional no acesso ao painel `/super_admin`, que permanece dependente de email+senha.
++
++## What Changes
++
++- Exibir uma nota contextual no onboarding de instalacao quando `DISABLE_EMAIL_LOGIN=true`, informando que a senha e usada exclusivamente no `/super_admin`.
++- Manter o campo de senha obrigatorio no onboarding de instalacao, sem alterar validacoes ou fluxo de criacao de conta.
++- Preservar comportamento atual quando `DISABLE_EMAIL_LOGIN=false` (sem nota adicional).
++- Nao alterar autenticacao do app principal, autenticacao do `/super_admin`, nem regras SAML existentes.
++
++## Capabilities
++
++### New Capabilities
++- `installation-onboarding-password-context`: define o comportamento do onboarding de instalacao para manter senha obrigatoria e exibir orientacao contextual em ambiente SSO-only.
++
++### Modified Capabilities
++- `disable-email-login`: explicita que a desativacao de email no login do app principal nao remove a necessidade de senha no onboarding de instalacao para acesso ao `/super_admin`.
++
++## Impact
++
++- Codigo afetado:
++  - `app/views/installation/onboarding/index.html.erb`
++  - (opcional para cobertura) `spec/controllers/installation/onboarding_controller_spec.rb`
++- APIs e contratos: sem mudancas de API.
++- Banco de dados: sem mudancas.
++- Dependencias: sem novas dependencias.
++
++### Impacto OSS vs Enterprise
++
++A mudanca ocorre no fluxo OSS de onboarding de instalacao e nao altera codigo `enterprise/`. O comportamento continua compativel com o overlay Enterprise, pois apenas esclarece UX e nao modifica regras de autenticacao SAML nem do Super Admin.
+diff --git a/openspec/changes/archive/2026-05-15-installation-onboarding-password-context/specs/disable-email-login/spec.md b/openspec/changes/archive/2026-05-15-installation-onboarding-password-context/specs/disable-email-login/spec.md
+new file mode 100644
+index 000000000..60a9e1505
+--- /dev/null
++++ b/openspec/changes/archive/2026-05-15-installation-onboarding-password-context/specs/disable-email-login/spec.md
+@@ -0,0 +1,19 @@
++## MODIFIED Requirements
++
++### Requirement: Email ausente de allowed_login_methods quando DISABLE_EMAIL_LOGIN=true
++O sistema SHALL excluir `'email'` do array `allowed_login_methods` quando a config `DISABLE_EMAIL_LOGIN` estiver definida como `true`, limitando essa desativacao ao login do app principal e preservando o onboarding de instalacao e o acesso ao `/super_admin`.
++
++#### Scenario: Email removido com DISABLE_EMAIL_LOGIN=true
++- **WHEN** `DISABLE_EMAIL_LOGIN` esta configurado como `true` na instalacao
++- **THEN** `DashboardController#allowed_login_methods` retorna array sem `'email'`
++- **AND** `window.chatwootConfig.allowedLoginMethods` nao contem `'email'`
++
++#### Scenario: Email presente com DISABLE_EMAIL_LOGIN=false (padrao)
++- **WHEN** `DISABLE_EMAIL_LOGIN` esta ausente ou configurado como `false`
++- **THEN** `DashboardController#allowed_login_methods` retorna array contendo `'email'`
++- **AND** comportamento atual e identico ao estado anterior a esta mudanca
++
++#### Scenario: Desativacao de email no app principal nao remove senha do onboarding
++- **WHEN** `DISABLE_EMAIL_LOGIN=true`
++- **THEN** o onboarding de instalacao em `/installation/onboarding` continua exibindo campo `Password` obrigatorio
++- **AND** o acesso ao `/super_admin` permanece baseado em email+senha
+diff --git a/openspec/changes/archive/2026-05-15-installation-onboarding-password-context/specs/installation-onboarding-password-context/spec.md b/openspec/changes/archive/2026-05-15-installation-onboarding-password-context/specs/installation-onboarding-password-context/spec.md
+new file mode 100644
+index 000000000..837561e00
+--- /dev/null
++++ b/openspec/changes/archive/2026-05-15-installation-onboarding-password-context/specs/installation-onboarding-password-context/spec.md
+@@ -0,0 +1,32 @@
++## ADDED Requirements
++
++### Requirement: Senha obrigatoria no onboarding de instalacao em qualquer modo de login
++O sistema SHALL manter o campo de senha obrigatorio no onboarding de instalacao, independentemente do valor de `DISABLE_EMAIL_LOGIN`.
++
++#### Scenario: Campo senha permanece obrigatorio com DISABLE_EMAIL_LOGIN=true
++- **WHEN** `DISABLE_EMAIL_LOGIN=true` e a pagina `/installation/onboarding` e acessada
++- **THEN** o campo `Password` e renderizado como obrigatorio
++
++#### Scenario: Campo senha permanece obrigatorio com DISABLE_EMAIL_LOGIN=false
++- **WHEN** `DISABLE_EMAIL_LOGIN` esta ausente ou configurado como `false`
++- **THEN** o campo `Password` continua renderizado como obrigatorio
++
++### Requirement: Nota contextual para senha em ambiente SSO-only
++O sistema SHALL exibir uma nota contextual abaixo do campo `Password` no onboarding de instalacao quando `DISABLE_EMAIL_LOGIN=true`, informando que essa senha e utilizada exclusivamente para acesso ao `/super_admin`.
++
++#### Scenario: Nota visivel quando DISABLE_EMAIL_LOGIN=true
++- **WHEN** `DISABLE_EMAIL_LOGIN=true` e a pagina `/installation/onboarding` e carregada
++- **THEN** a nota contextual e exibida abaixo do campo `Password`
++- **AND** a mensagem explicita que o login no app principal sera via SSO e que a senha e exclusiva do `/super_admin`
++
++#### Scenario: Nota oculta quando DISABLE_EMAIL_LOGIN=false
++- **WHEN** `DISABLE_EMAIL_LOGIN` esta ausente ou configurado como `false`
++- **THEN** a nota contextual nao e exibida
++
++### Requirement: Fluxo de criacao do SuperAdmin permanece inalterado
++O sistema SHALL preservar o fluxo atual de criacao do usuario `SuperAdmin` no onboarding de instalacao, usando a senha informada para autenticacao no `/super_admin`.
++
++#### Scenario: Credenciais criadas no onboarding autenticam no super admin
++- **WHEN** o onboarding de instalacao e concluido com email e senha validos
++- **THEN** o usuario `SuperAdmin` e criado com a senha informada
++- **AND** o acesso em `/super_admin/sign_in` com essas credenciais permanece funcional
+diff --git a/openspec/changes/archive/2026-05-15-installation-onboarding-password-context/tasks.md b/openspec/changes/archive/2026-05-15-installation-onboarding-password-context/tasks.md
+new file mode 100644
+index 000000000..d3c5f888f
+--- /dev/null
++++ b/openspec/changes/archive/2026-05-15-installation-onboarding-password-context/tasks.md
+@@ -0,0 +1,27 @@
++## 1. Ajuste de interface no onboarding de instalacao
++
++- [x] 1.1 Adicionar condicional no `app/views/installation/onboarding/index.html.erb` para detectar `DISABLE_EMAIL_LOGIN=true`.
++- [x] 1.2 Exibir a nota contextual em pt-BR logo abaixo do campo `Password` apenas quando a condicional estiver ativa.
++- [x] 1.3 Garantir que o campo `Password` continue obrigatorio e sem alteracao de validacao em qualquer valor da flag.
++
++## 2. Preservacao de comportamento e compatibilidade
++
++- [x] 2.1 Validar que nao houve alteracao no fluxo de criacao do `SuperAdmin` em `Installation::OnboardingController` e `AccountBuilder`.
++- [x] 2.2 Confirmar que o acesso ao `/super_admin` permanece por email+senha e sem dependencia de SAML.
++- [x] 2.3 Confirmar que nao ha mudancas necessarias em `enterprise/` para manter compatibilidade.
++
++## 3. Validacao funcional da fase
++
++- [x] 3.1 Executar validacao manual com `DISABLE_EMAIL_LOGIN=true`: nota visivel, onboarding concluido e login no `/super_admin` funcional.
++- [x] 3.2 Executar validacao manual com `DISABLE_EMAIL_LOGIN=false`: nota ausente e comportamento atual preservado.
++- [x] 3.3 Registrar evidencias de validacao no PR (descricao dos cenarios e resultado observado).
++
++## Evidencias para PR
++
++- `docker compose run --rm rails bundle exec rspec spec/controllers/installation/onboarding_controller_spec.rb:23`
++  - Resultado: `1 example, 0 failures`
++  - Cobre: exibicao da nota contextual quando `DISABLE_EMAIL_LOGIN=true`.
++- `docker compose run --rm rails bundle exec rspec spec/controllers/installation/onboarding_controller_spec.rb:35`
++  - Resultado: `1 example, 0 failures`
++  - Cobre: ausencia da nota contextual quando `DISABLE_EMAIL_LOGIN=false`.
++- Decisao validada em revisao/exploracao: manter texto da nota em pt-BR nesta fase (risco de idioma tratado como LOW e aceito).
+diff --git a/openspec/changes/archive/2026-05-15-remove-saml-licensing-gates/.openspec.yaml b/openspec/changes/archive/2026-05-15-remove-saml-licensing-gates/.openspec.yaml
+new file mode 100644
+index 000000000..9f7086699
+--- /dev/null
++++ b/openspec/changes/archive/2026-05-15-remove-saml-licensing-gates/.openspec.yaml
+@@ -0,0 +1,2 @@
++schema: spec-driven
++created: 2026-05-15
+diff --git a/openspec/changes/archive/2026-05-15-remove-saml-licensing-gates/design.md b/openspec/changes/archive/2026-05-15-remove-saml-licensing-gates/design.md
+new file mode 100644
+index 000000000..89e960028
+--- /dev/null
++++ b/openspec/changes/archive/2026-05-15-remove-saml-licensing-gates/design.md
+@@ -0,0 +1,44 @@
++## Context
++
++O `DashboardController` expõe `chatwootConfig` para o frontend, incluindo `ALLOWED_LOGIN_METHODS`. O método `allowed_login_methods` monta esse array condicionalmente:
++
++```ruby
++def allowed_login_methods
++  methods = ['email']
++  methods << 'google_oauth' if GlobalConfigService.load('ENABLE_GOOGLE_OAUTH_LOGIN', 'true').to_s != 'false'
++  methods << 'saml' if ChatwootHub.pricing_plan != 'community' && GlobalConfigService.load('ENABLE_SAML_SSO_LOGIN', 'true').to_s != 'false'
++  methods
++end
++```
++
++`ChatwootHub.pricing_plan` retorna `'community'` em qualquer self-hosted sem licença cloud (`INSTALLATION_PRICING_PLAN` ausente ou com valor `'community'`). A condição `pricing_plan != 'community'` é sempre `false`, tornando SAML inacessível via frontend mesmo com toda a implementação enterprise presente e funcional.
++
++## Goals / Non-Goals
++
++**Goals:**
++- `'saml'` sempre presente em `allowed_login_methods`, sem dependência de `pricing_plan` ou `ENABLE_SAML_SSO_LOGIN`
++- Manter o comportamento de `'email'` e `'google_oauth'` intocado
++
++**Non-Goals:**
++- Modificar qualquer arquivo em `enterprise/`
++- Remover o `ENABLE_SAML_SSO_LOGIN` do `installation_config.yml` — ele ainda é usado pelos enterprise controllers
++- Alterar a tela de login ou o paywall SAML no frontend (Fases 3 e 4 do PRD-001)
++- Alterar rotas, models ou policies
++
++## Decisions
++
++**Decisão 1: Remover a condição inteira — `methods << 'saml'` sem guard**
++
++Alternativa considerada: manter o gate do `ENABLE_SAML_SSO_LOGIN` e remover apenas o gate do `pricing_plan`. Descartada porque o PRD-001 (RN-009) define "SAML sempre ativo" nesta instalação, e manter um gate parcial criaria inconsistência: o frontend seria bloqueado por uma config que os controllers enterprise ignoram como gate primário.
++
++**Decisão 2: Manter `INSTALLATION_PRICING_PLAN` no `GLOBAL_CONFIG_KEYS`**
++
++`INSTALLATION_PRICING_PLAN` permanece no array. `app/views/layouts/vueapp.html.erb:51` o lê de `@global_config` para popular `enterprisePlanName` no `window.chatwootConfig`, que é consumido por `usePolicy.js` e `captain/Index.vue` para controle de paywall e acesso a features premium. Removê-lo quebraria silenciosamente esse mecanismo. A remoção do paywall específico do SAML é feita na Fase 3 via `PREMIUM_FEATURES` em `featureFlags.js`.
++
++**Decisão 3: Não tocar `enterprise/`**
++
++Os enterprise controllers (`api/v1/auth_controller.rb` e `api/v1/accounts/saml_settings_controller.rb`) verificam `ENABLE_SAML_SSO_LOGIN` com default `'true'` e já funcionam corretamente. Não há razão para alterá-los.
++
++## Risks / Trade-offs
++
++**[Operador deseja desabilitar SAML via Super Admin]** → Após esta mudança, setar `ENABLE_SAML_SSO_LOGIN=false` no Super Admin não remove mais `'saml'` de `allowedLoginMethods` no frontend. Os enterprise controllers ainda o respeitam para bloquear o fluxo de login. Risco aceito: o PRD-001 define SAML como método primário desta instalação; desabilitá-lo está fora do escopo. Coberto pelo runbook da Fase 6.
+diff --git a/openspec/changes/archive/2026-05-15-remove-saml-licensing-gates/proposal.md b/openspec/changes/archive/2026-05-15-remove-saml-licensing-gates/proposal.md
+new file mode 100644
+index 000000000..36d3044d7
+--- /dev/null
++++ b/openspec/changes/archive/2026-05-15-remove-saml-licensing-gates/proposal.md
+@@ -0,0 +1,25 @@
++## Why
++
++O Chatwoot possui implementação completa de SAML SSO na camada Enterprise, mas o `DashboardController` bloqueia a inclusão de `'saml'` em `allowed_login_methods` quando `pricing_plan == 'community'` — condição verdadeira em toda instalação self-hosted sem licença cloud paga. Isso impede que instalações self-hosted utilizem SAML SSO mesmo com todo o código de suporte presente e funcional. Esta é a Fase 2 do PRD-001 (SAML SSO para Instalação Self-Hosted).
++
++## What Changes
++
++- `app/controllers/dashboard_controller.rb` — remover a condição composta (`pricing_plan != 'community' && ENABLE_SAML_SSO_LOGIN != 'false'`) de `allowed_login_methods` e sempre incluir `'saml'` no array de métodos permitidos
++
++## Capabilities
++
++### New Capabilities
++
++- `saml-always-in-login-methods`: Garantia de que `'saml'` sempre aparece em `window.chatwootConfig.allowedLoginMethods`, independente do valor de `pricing_plan` ou de qualquer variável de ambiente de licenciamento
++
++### Modified Capabilities
++
++*(sem mudanças em requisitos de capabilities existentes)*
++
++## Impact
++
++- **`app/controllers/dashboard_controller.rb`**: única mudança de código — remoção da condição de licenciamento em `allowed_login_methods`
++- **`window.chatwootConfig.allowedLoginMethods`**: passa a sempre incluir `'saml'`; comportamento de `'email'` e `'google_oauth'` permanece inalterado
++- **Sem impacto em `enterprise/`**: os controllers enterprise (`auth_controller.rb`, `saml_settings_controller.rb`) verificam `ENABLE_SAML_SSO_LOGIN` com default `'true'` e já funcionam corretamente sem nenhuma alteração
++- **Sem impacto em rotas, modelos ou frontend**: esta fase altera apenas o que chega ao frontend via `chatwootConfig`; as telas de login e paywall são tratadas nas Fases 3 e 4 do PRD-001
++- **Impacto OSS vs Enterprise**: a mudança é exclusivamente em `app/` (OSS). O código enterprise permanece intocado. A remoção do gate em OSS é segura porque os enterprise controllers já têm seus próprios guards independentes
+diff --git a/openspec/changes/archive/2026-05-15-remove-saml-licensing-gates/specs/saml-always-in-login-methods/spec.md b/openspec/changes/archive/2026-05-15-remove-saml-licensing-gates/specs/saml-always-in-login-methods/spec.md
+new file mode 100644
+index 000000000..f869285ea
+--- /dev/null
++++ b/openspec/changes/archive/2026-05-15-remove-saml-licensing-gates/specs/saml-always-in-login-methods/spec.md
+@@ -0,0 +1,31 @@
++## ADDED Requirements
++
++### Requirement: SAML sempre presente em allowed_login_methods
++O sistema SHALL incluir `'saml'` no array `allowed_login_methods` independentemente do valor de `pricing_plan` ou de qualquer variável de configuração de licenciamento.
++
++#### Scenario: SAML presente com pricing_plan community
++- **WHEN** `ChatwootHub.pricing_plan` retorna `'community'` (padrão self-hosted)
++- **THEN** `DashboardController#allowed_login_methods` retorna um array contendo `'saml'`
++
++#### Scenario: SAML presente independente do ENABLE_SAML_SSO_LOGIN
++- **WHEN** `ENABLE_SAML_SSO_LOGIN` está ausente ou com qualquer valor no banco
++- **THEN** `DashboardController#allowed_login_methods` retorna um array contendo `'saml'`
++
++#### Scenario: chatwootConfig reflete SAML no frontend
++- **WHEN** o frontend carrega `window.chatwootConfig`
++- **THEN** `window.chatwootConfig.allowedLoginMethods` inclui `'saml'`
++
++### Requirement: Métodos email e google_oauth permanecem inalterados
++O sistema SHALL manter o comportamento atual dos demais métodos de login após a remoção do gate de SAML.
++
++#### Scenario: email sempre presente
++- **WHEN** `allowed_login_methods` é calculado
++- **THEN** `'email'` está presente no array retornado
++
++#### Scenario: google_oauth controlado por sua própria config
++- **WHEN** `ENABLE_GOOGLE_OAUTH_LOGIN` está habilitado (padrão)
++- **THEN** `'google_oauth'` está presente no array retornado
++
++#### Scenario: google_oauth ausente quando desabilitado
++- **WHEN** `ENABLE_GOOGLE_OAUTH_LOGIN` está setado como `'false'`
++- **THEN** `'google_oauth'` não está presente no array retornado
+diff --git a/openspec/changes/archive/2026-05-15-remove-saml-licensing-gates/tasks.md b/openspec/changes/archive/2026-05-15-remove-saml-licensing-gates/tasks.md
+new file mode 100644
+index 000000000..2d8cb1f52
+--- /dev/null
++++ b/openspec/changes/archive/2026-05-15-remove-saml-licensing-gates/tasks.md
+@@ -0,0 +1,9 @@
++## 1. Remoção do gate de licenciamento
++
++- [x] 1.1 Em `app/controllers/dashboard_controller.rb`, no método `allowed_login_methods`, substituir a linha condicional de SAML por `methods << 'saml'` (sem condição)
++
++## 2. Verificação
++
++- [x] 2.1 Reiniciar o servidor Rails e verificar no console do browser que `window.chatwootConfig.allowedLoginMethods` inclui `'saml'`
++- [x] 2.2 Verificar que `window.chatwootConfig.enterprisePlanName` continua presente e com o valor correto (`'community'` em self-hosted sem licença)
++- [x] 2.3 Verificar que `window.chatwootConfig.allowedLoginMethods` ainda inclui `'email'` e `'google_oauth'` (comportamento inalterado)
+diff --git a/openspec/changes/archive/2026-05-15-saml-remove-premium-paywall/.openspec.yaml b/openspec/changes/archive/2026-05-15-saml-remove-premium-paywall/.openspec.yaml
+new file mode 100644
+index 000000000..9f7086699
+--- /dev/null
++++ b/openspec/changes/archive/2026-05-15-saml-remove-premium-paywall/.openspec.yaml
+@@ -0,0 +1,2 @@
++schema: spec-driven
++created: 2026-05-15
+diff --git a/openspec/changes/archive/2026-05-15-saml-remove-premium-paywall/design.md b/openspec/changes/archive/2026-05-15-saml-remove-premium-paywall/design.md
+new file mode 100644
+index 000000000..5ce1d522d
+--- /dev/null
++++ b/openspec/changes/archive/2026-05-15-saml-remove-premium-paywall/design.md
+@@ -0,0 +1,59 @@
++## Context
++
++A lógica de paywall do frontend está centralizada em `usePolicy.js`. O composable expõe `shouldShowPaywall(featureFlag)` que:
++
++1. Verifica se a feature está em `PREMIUM_FEATURES` (`featureFlags.js`)
++2. Se estiver, avalia o tipo de instalação:
++   - Cloud: retorna `!isFeatureFlagEnabled(flag)`
++   - Enterprise: retorna `!hasPremiumEnterprise` (true quando `pricing_plan === 'community'`)
++   - Outros: retorna `false`
++
++`FEATURE_FLAGS.SAML` está atualmente em `PREMIUM_FEATURES`, então `shouldShowPaywall('saml')` retorna `true` em instalações Enterprise community — o que exibe `SamlPaywall.vue` e nunca chega a renderizar `SamlSettings.vue`.
++
++O fluxo atual em `security/Index.vue`:
++```
++showPaywall = shouldShowPaywall('saml') → TRUE (Enterprise community)
++  → <SamlPaywall v-if="showPaywall" />   ← renderiza isso
++
++shouldShowSaml = shouldShow(...) && isSamlSsoEnabled
++  → <SamlSettings v-else-if="shouldShowSaml" />  ← nunca chega aqui
++```
++
++## Goals / Non-Goals
++
++**Goals:**
++- `shouldShowPaywall('saml')` retornar `false` em qualquer tipo de instalação
++- `SamlSettings.vue` renderizar para administradores com a feature habilitada e SAML em `allowedLoginMethods`
++- `SamlPaywall.vue` nunca ser exibido
++
++**Non-Goals:**
++- Alterar qualquer lógica de paywall para outras features premium (SLA, Captain, etc.)
++- Remover `SamlPaywall.vue` do codebase (pode ser mantido como dead code por ora)
++- Modificar qualquer arquivo em `enterprise/`
++- Alterar comportamento de instalações Cloud
++
++## Decisions
++
++### Decisão: Remover SAML de PREMIUM_FEATURES, não alterar `shouldShowPaywall`
++
++**Escolhida:** Remover `FEATURE_FLAGS.SAML` do array `PREMIUM_FEATURES` em `featureFlags.js`.
++
++**Alternativas consideradas:**
++
++| Alternativa | Problema |
++|---|---|
++| Alterar `shouldShowPaywall` para ignorar SAML especificamente | Lógica ad-hoc, polui o composable com caso especial |
++| Adicionar condição em `Index.vue` para curto-circuitar o paywall | Duplica lógica, vai contra o design do `usePolicy` |
++| Mover SAML para um array separado de "enterprise-only" | Over-engineering para uma mudança de 1 linha |
++
++**Rationale:** `PREMIUM_FEATURES` é a fonte de verdade de "o que mostra paywall". Remover SAML desse array é a mudança mais cirúrgica, semânticamente correta (SAML não é mais premium nesta instalação) e sem efeitos colaterais em outros componentes.
++
++### Decisão: Não remover SamlPaywall.vue
++
++O componente pode ser mantido. Sem estar no `PREMIUM_FEATURES`, o `v-if="showPaywall"` em `Index.vue` nunca será `true`, então o componente simplesmente nunca renderiza. Remoção pode ser feita em cleanup posterior.
++
++## Risks / Trade-offs
++
++- **[Risco] Regressão em instalações Cloud:** Se alguma conta Cloud tiver a feature `saml` desabilitada manualmente, ela deixará de ver o paywall e verá a mensagem `SAML_DISABLED_MESSAGE` em vez disso (pois `shouldShowSaml` seria `false`). → Mitigação: comportamento aceitável — sem paywall, sem formulário; a feature precisa estar habilitada na conta para mostrar o formulário, o que já era o caso antes.
++- **[Risco] Outras features premium:** A mudança é escopo-limitada a `FEATURE_FLAGS.SAML` e não afeta nenhuma outra feature no array. Risco zero de regressão para SLA, Captain, etc.
++- **[Trade-off] SamlPaywall.vue vira dead code:** Componente importado em `Index.vue` mas nunca renderizado. Aceitável para MVP; pode ser removido em refactor posterior.
+diff --git a/openspec/changes/archive/2026-05-15-saml-remove-premium-paywall/proposal.md b/openspec/changes/archive/2026-05-15-saml-remove-premium-paywall/proposal.md
+new file mode 100644
+index 000000000..e883e47db
+--- /dev/null
++++ b/openspec/changes/archive/2026-05-15-saml-remove-premium-paywall/proposal.md
+@@ -0,0 +1,29 @@
++## Why
++
++A tela de configuração SAML (`Settings > Security`) nunca é exibida em instalações self-hosted Enterprise porque o `FEATURE_FLAGS.SAML` está incluído em `PREMIUM_FEATURES`, fazendo `shouldShowPaywall('saml')` retornar `true` para qualquer conta com `pricing_plan = 'community'`. Com as Fases 1 e 2 já concluídas (feature saml habilitada por padrão e SAML sempre presente em `allowedLoginMethods`), o único bloqueio restante para o admin configurar o IdP pelo painel é este paywall de licenciamento.
++
++## What Changes
++
++- Remover `FEATURE_FLAGS.SAML` do array `PREMIUM_FEATURES` em `featureFlags.js`
++- `shouldShowPaywall('saml')` passa a retornar `false` em qualquer tipo de instalação
++- `SamlSettings.vue` é renderizado diretamente quando o usuário é administrador, a feature está habilitada na conta e SAML está em `allowedLoginMethods`
++- `SamlPaywall.vue` nunca mais é exibido
++
++## Capabilities
++
++### New Capabilities
++
++- `saml-settings-accessible`: A tela de configuração SAML em `Settings > Security` exibe o formulário diretamente, sem paywall, para administradores em instalações self-hosted Enterprise com a feature saml habilitada.
++
++### Modified Capabilities
++
++_(nenhuma — as specs existentes de `saml-feature-default` e `saml-always-in-login-methods` não têm seus requisitos alterados)_
++
++## Impact
++
++- **Arquivo alterado:** `app/javascript/dashboard/featureFlags.js` (1 linha removida)
++- **Componentes afetados:** `Index.vue` (security settings), `SamlSettings.vue`, `SamlPaywall.vue` — sem mudança de código neles, apenas o comportamento muda
++- **Sem impacto em `enterprise/`** — toda a lógica SAML no overlay Enterprise permanece intacta
++- **Sem impacto de i18n** — nenhuma string nova
++- **Sem impacto de API** — nenhum endpoint alterado
++- **Pré-requisitos:** Fases 1 e 2 já implementadas (saml em `feature_flags` das contas e em `allowedLoginMethods`)
+diff --git a/openspec/changes/archive/2026-05-15-saml-remove-premium-paywall/specs/saml-settings-accessible/spec.md b/openspec/changes/archive/2026-05-15-saml-remove-premium-paywall/specs/saml-settings-accessible/spec.md
+new file mode 100644
+index 000000000..010da6a16
+--- /dev/null
++++ b/openspec/changes/archive/2026-05-15-saml-remove-premium-paywall/specs/saml-settings-accessible/spec.md
+@@ -0,0 +1,37 @@
++# Capability: saml-settings-accessible
++
++## Purpose
++
++Garante que o formulário de configuração SAML (`Settings > Security`) seja exibido diretamente para administradores em instalações self-hosted Enterprise, sem exibir paywall de licenciamento. Esta capability depende de `saml-feature-default` (feature habilitada na conta) e `saml-always-in-login-methods` (SAML em `allowedLoginMethods`).
++
++## Requirements
++
++## ADDED Requirements
++
++### Requirement: Formulário SAML acessível sem paywall
++O sistema SHALL exibir o formulário de configuração SAML diretamente, sem paywall, quando o usuário for administrador, a feature `saml` estiver habilitada na conta e `allowedLoginMethods` incluir `'saml'`.
++
++#### Scenario: Formulário visível em instalação Enterprise community
++- **WHEN** a instalação é Enterprise com `pricing_plan = 'community'`
++- **AND** a conta tem a feature `saml` habilitada
++- **AND** `allowedLoginMethods` inclui `'saml'`
++- **AND** o usuário autenticado tem role `administrator`
++- **THEN** `SamlSettings` é renderizado em `Settings > Security`
++- **AND** `SamlPaywall` não é renderizado
++
++#### Scenario: Paywall nunca exibido para SAML
++- **WHEN** `shouldShowPaywall('saml')` é avaliado em qualquer tipo de instalação
++- **THEN** o resultado é `false`
++
++#### Scenario: Formulário não exibido sem permissão de administrador
++- **WHEN** o usuário autenticado tem role `agent`
++- **THEN** `SamlSettings` não é renderizado em `Settings > Security`
++
++#### Scenario: Formulário não exibido quando feature desabilitada na conta
++- **WHEN** a conta não tem a feature `saml` habilitada no bitmap `feature_flags`
++- **THEN** `SamlSettings` não é renderizado
++- **AND** a mensagem `SAML_DISABLED_MESSAGE` é exibida no lugar
++
++#### Scenario: Outras features premium não são afetadas
++- **WHEN** `shouldShowPaywall` é avaliado para features como `sla`, `audit_logs` ou `custom_roles`
++- **THEN** o comportamento permanece idêntico ao estado anterior a esta mudança
+diff --git a/openspec/changes/archive/2026-05-15-saml-remove-premium-paywall/tasks.md b/openspec/changes/archive/2026-05-15-saml-remove-premium-paywall/tasks.md
+new file mode 100644
+index 000000000..9b7551686
+--- /dev/null
++++ b/openspec/changes/archive/2026-05-15-saml-remove-premium-paywall/tasks.md
+@@ -0,0 +1,15 @@
++## 1. Remover SAML de PREMIUM_FEATURES
++
++- [x] 1.1 Em `app/javascript/dashboard/featureFlags.js`, remover a linha `FEATURE_FLAGS.SAML,` do array `PREMIUM_FEATURES`
++- [x] 1.2 Verificar que nenhum outro arquivo importa `PREMIUM_FEATURES` com dependência de SAML estar nele (buscar por `PREMIUM_FEATURES` no codebase)
++
++## 2. Verificação funcional
++
++- [x] 2.1 Acessar `Settings > Security` como administrador e confirmar que o formulário SAML é exibido (sem paywall)
++- [x] 2.2 Confirmar que `SamlPaywall` não é renderizado inspecionando o DOM ou adicionando log temporário
++- [x] 2.3 Confirmar que outras features premium (ex.: SLA em `Settings > SLA`) continuam exibindo paywall normalmente em instalação community
++
++## 3. Testes automatizados
++
++- [x] 3.1 Rodar `pnpm test` e verificar que nenhum teste existente quebra com a remoção
++- [x] 3.2 Rodar `pnpm eslint` para confirmar que não há erros de lint introduzidos
+diff --git a/openspec/specs/disable-email-login/spec.md b/openspec/specs/disable-email-login/spec.md
+new file mode 100644
+index 000000000..1163dddb0
+--- /dev/null
++++ b/openspec/specs/disable-email-login/spec.md
+@@ -0,0 +1,51 @@
++# Capability: disable-email-login
++
++## Purpose
++
++Permite que instalações self-hosted removam o formulário de email/senha da tela de login via variável de ambiente `DISABLE_EMAIL_LOGIN`. Quando ativa, apenas métodos alternativos (SAML SSO, Google OAuth) são exibidos, tornando o ambiente exclusivamente SSO para o app principal.
++
++## Requirements
++
++### Requirement: Email ausente de allowed_login_methods quando DISABLE_EMAIL_LOGIN=true
++O sistema SHALL excluir `'email'` do array `allowed_login_methods` quando a config `DISABLE_EMAIL_LOGIN` estiver definida como `true`, limitando essa desativação ao login do app principal e preservando o onboarding de instalação e o acesso ao `/super_admin`.
++
++#### Scenario: Email removido com DISABLE_EMAIL_LOGIN=true
++- **WHEN** `DISABLE_EMAIL_LOGIN` está configurado como `true` na instalação
++- **THEN** `DashboardController#allowed_login_methods` retorna array sem `'email'`
++- **AND** `window.chatwootConfig.allowedLoginMethods` não contém `'email'`
++
++#### Scenario: Email presente com DISABLE_EMAIL_LOGIN=false (padrão)
++- **WHEN** `DISABLE_EMAIL_LOGIN` está ausente ou configurado como `false`
++- **THEN** `DashboardController#allowed_login_methods` retorna array contendo `'email'`
++- **AND** comportamento atual é idêntico ao estado anterior a esta mudança
++
++#### Scenario: Desativação de email no app principal não remove senha do onboarding
++- **WHEN** `DISABLE_EMAIL_LOGIN=true`
++- **THEN** o onboarding de instalação em `/installation/onboarding` continua exibindo campo `Password` obrigatório
++- **AND** o acesso ao `/super_admin` permanece baseado em email+senha
++
++### Requirement: Formulário de email/senha oculto na tela de login quando email desabilitado
++O sistema SHALL ocultar o formulário de email/senha e o divider na tela de login quando `'email'` não estiver presente em `allowedLoginMethods`.
++
++#### Scenario: Formulário e divider ocultos com email desabilitado
++- **WHEN** `allowedLoginMethods` não contém `'email'`
++- **THEN** o formulário com campos email e senha não é renderizado
++- **AND** o `SimpleDivider` entre os botões OAuth/SAML e o formulário não é renderizado
++
++#### Scenario: Botão SSO permanece visível com email desabilitado
++- **WHEN** `allowedLoginMethods` não contém `'email'`
++- **AND** `allowedLoginMethods` contém `'saml'`
++- **THEN** o botão "Entrar com SSO" é o único elemento de login visível
++
++#### Scenario: Comportamento inalterado quando email habilitado
++- **WHEN** `allowedLoginMethods` contém `'email'`
++- **THEN** formulário de email/senha e divider são renderizados normalmente
++- **AND** nenhuma alteração visual em relação ao estado anterior
++
++### Requirement: Rota SSO acessível independente da config
++O sistema SHALL manter a rota `/app/login/sso` acessível diretamente, independente do valor de `DISABLE_EMAIL_LOGIN`.
++
++#### Scenario: Rota SSO acessível com email desabilitado
++- **WHEN** `DISABLE_EMAIL_LOGIN=true`
++- **THEN** a rota `/app/login/sso` responde normalmente
++- **AND** o formulário de SSO (campo email) é exibido
+diff --git a/openspec/specs/installation-onboarding-password-context/spec.md b/openspec/specs/installation-onboarding-password-context/spec.md
+new file mode 100644
+index 000000000..21420d38d
+--- /dev/null
++++ b/openspec/specs/installation-onboarding-password-context/spec.md
+@@ -0,0 +1,38 @@
++# Capability: installation-onboarding-password-context
++
++## Purpose
++
++Garante que o onboarding de instalação mantenha a senha como credencial obrigatória e explique seu uso em ambientes SSO-only, evitando perda de acesso ao `/super_admin`.
++
++## Requirements
++
++### Requirement: Senha obrigatória no onboarding de instalação em qualquer modo de login
++O sistema SHALL manter o campo de senha obrigatório no onboarding de instalação, independentemente do valor de `DISABLE_EMAIL_LOGIN`.
++
++#### Scenario: Campo senha permanece obrigatório com DISABLE_EMAIL_LOGIN=true
++- **WHEN** `DISABLE_EMAIL_LOGIN=true` e a página `/installation/onboarding` é acessada
++- **THEN** o campo `Password` é renderizado como obrigatório
++
++#### Scenario: Campo senha permanece obrigatório com DISABLE_EMAIL_LOGIN=false
++- **WHEN** `DISABLE_EMAIL_LOGIN` está ausente ou configurado como `false`
++- **THEN** o campo `Password` continua renderizado como obrigatório
++
++### Requirement: Nota contextual para senha em ambiente SSO-only
++O sistema SHALL exibir uma nota contextual abaixo do campo `Password` no onboarding de instalação quando `DISABLE_EMAIL_LOGIN=true`, informando que essa senha é utilizada exclusivamente para acesso ao `/super_admin`.
++
++#### Scenario: Nota visível quando DISABLE_EMAIL_LOGIN=true
++- **WHEN** `DISABLE_EMAIL_LOGIN=true` e a página `/installation/onboarding` é carregada
++- **THEN** a nota contextual é exibida abaixo do campo `Password`
++- **AND** a mensagem explicita que o login no app principal será via SSO e que a senha é exclusiva do `/super_admin`
++
++#### Scenario: Nota oculta quando DISABLE_EMAIL_LOGIN=false
++- **WHEN** `DISABLE_EMAIL_LOGIN` está ausente ou configurado como `false`
++- **THEN** a nota contextual não é exibida
++
++### Requirement: Fluxo de criação do SuperAdmin permanece inalterado
++O sistema SHALL preservar o fluxo atual de criação do usuário `SuperAdmin` no onboarding de instalação, usando a senha informada para autenticação no `/super_admin`.
++
++#### Scenario: Credenciais criadas no onboarding autenticam no super admin
++- **WHEN** o onboarding de instalação é concluído com email e senha válidos
++- **THEN** o usuário `SuperAdmin` é criado com a senha informada
++- **AND** o acesso em `/super_admin/sign_in` com essas credenciais permanece funcional
+diff --git a/openspec/specs/saml-always-in-login-methods/spec.md b/openspec/specs/saml-always-in-login-methods/spec.md
+new file mode 100644
+index 000000000..c2477ffed
+--- /dev/null
++++ b/openspec/specs/saml-always-in-login-methods/spec.md
+@@ -0,0 +1,38 @@
++# Capability: saml-always-in-login-methods
++
++## Purpose
++
++Garante que `'saml'` esteja sempre presente em `DashboardController#allowed_login_methods` — e portanto em `window.chatwootConfig.allowedLoginMethods` — independentemente de `pricing_plan` ou de qualquer variável de configuração de licenciamento. Esta capability é pré-requisito para que o frontend exiba o botão SSO em instalações self-hosted.
++
++## Requirements
++
++### Requirement: SAML sempre presente em allowed_login_methods
++O sistema SHALL incluir `'saml'` no array `allowed_login_methods` independentemente de qualquer variável de configuração de licenciamento ou ambiente.
++
++#### Scenario: SAML presente com pricing_plan community
++- **WHEN** `ChatwootHub.pricing_plan` retorna `'community'` (padrão self-hosted)
++- **THEN** `DashboardController#allowed_login_methods` retorna um array contendo `'saml'`
++
++#### Scenario: SAML sempre presente, sem dependência de configuração
++- **WHEN** `allowed_login_methods` é calculado em qualquer instalação
++- **THEN** `DashboardController#allowed_login_methods` retorna um array contendo `'saml'`
++- **AND** nenhuma variável de ambiente ou config de banco pode remover `'saml'` do array
++
++#### Scenario: chatwootConfig reflete SAML no frontend
++- **WHEN** o frontend carrega `window.chatwootConfig`
++- **THEN** `window.chatwootConfig.allowedLoginMethods` inclui `'saml'`
++
++### Requirement: Métodos email e google_oauth permanecem inalterados
++O sistema SHALL manter o comportamento atual dos demais métodos de login após a remoção do gate de SAML.
++
++#### Scenario: email presente por padrão
++- **WHEN** `allowed_login_methods` é calculado e `DISABLE_EMAIL_LOGIN` está ausente ou `false`
++- **THEN** `'email'` está presente no array retornado
++
++#### Scenario: google_oauth controlado por sua própria config
++- **WHEN** `ENABLE_GOOGLE_OAUTH_LOGIN` está habilitado (padrão)
++- **THEN** `'google_oauth'` está presente no array retornado
++
++#### Scenario: google_oauth ausente quando desabilitado
++- **WHEN** `ENABLE_GOOGLE_OAUTH_LOGIN` está setado como `'false'`
++- **THEN** `'google_oauth'` não está presente no array retornado
+diff --git a/openspec/specs/saml-feature-default/spec.md b/openspec/specs/saml-feature-default/spec.md
+new file mode 100644
+index 000000000..367a53955
+--- /dev/null
++++ b/openspec/specs/saml-feature-default/spec.md
+@@ -0,0 +1,36 @@
++# Capability: saml-feature-default
++
++## Purpose
++
++Garante que a feature `saml` esteja habilitada por padrão em todas as contas do Chatwoot — novas e existentes — sem necessidade de ativação manual. Esta capability é o pré-requisito para que os gates downstream de SAML SSO (configuração de IdP, login SSO, bloqueio de senha) funcionem corretamente.
++
++## Requirements
++
++### Requirement: Feature SAML habilitada por padrão em novas contas
++O sistema SHALL criar toda nova conta com a feature `saml` habilitada no bitmap `feature_flags`, sem necessidade de ativação manual.
++
++#### Scenario: Nova conta criada após a migration
++- **WHEN** uma nova conta é criada via `AccountBuilder` ou API de plataforma
++- **THEN** `account.feature_enabled?('saml')` retorna `true`
++
++#### Scenario: `GET /api/v1/accounts/:id` reflete o estado da feature
++- **WHEN** a API de conta é consultada para uma conta recém-criada
++- **THEN** o campo `features.saml` no response JSON é `true`
++
++### Requirement: Feature SAML habilitada em contas existentes após migration
++O sistema SHALL habilitar a feature `saml` em todas as contas já existentes no banco quando a migration for executada.
++
++#### Scenario: Migration executada em instalação com contas pré-existentes
++- **WHEN** a migration `enable_saml_for_all_accounts` é executada
++- **THEN** toda conta existente passa a ter `feature_enabled?('saml') == true`
++
++#### Scenario: Migration idempotente
++- **WHEN** a migration é executada mais de uma vez (ex.: re-run acidental)
++- **THEN** nenhum erro é gerado e o estado final permanece `feature_enabled?('saml') == true`
++
++### Requirement: `ACCOUNT_LEVEL_FEATURE_DEFAULTS` reflete `saml: enabled: true`
++O sistema SHALL atualizar a entrada `saml` no `InstallationConfig['ACCOUNT_LEVEL_FEATURE_DEFAULTS']` para `enabled: true`, garantindo que novas contas criadas em instalações existentes também nasçam com a feature habilitada.
++
++#### Scenario: Conta criada em instalação existente após migration
++- **WHEN** uma nova conta é criada em uma instalação onde a migration já foi executada
++- **THEN** `account.feature_enabled?('saml')` retorna `true` (via `enable_default_features` no `before_create`)
+diff --git a/openspec/specs/saml-settings-accessible/spec.md b/openspec/specs/saml-settings-accessible/spec.md
+new file mode 100644
+index 000000000..b36ba4f89
+--- /dev/null
++++ b/openspec/specs/saml-settings-accessible/spec.md
+@@ -0,0 +1,35 @@
++# Capability: saml-settings-accessible
++
++## Purpose
++
++Garante que o formulário de configuração SAML (`Settings > Security`) seja exibido diretamente para administradores em instalações self-hosted Enterprise, sem exibir paywall de licenciamento. Esta capability depende de `saml-feature-default` (feature habilitada na conta) e `saml-always-in-login-methods` (SAML em `allowedLoginMethods`).
++
++## Requirements
++
++### Requirement: Formulário SAML acessível sem paywall
++O sistema SHALL exibir o formulário de configuração SAML diretamente, sem paywall, quando o usuário for administrador, a feature `saml` estiver habilitada na conta e `allowedLoginMethods` incluir `'saml'`.
++
++#### Scenario: Formulário visível em instalação Enterprise community
++- **WHEN** a instalação é Enterprise com `pricing_plan = 'community'`
++- **AND** a conta tem a feature `saml` habilitada
++- **AND** `allowedLoginMethods` inclui `'saml'`
++- **AND** o usuário autenticado tem role `administrator`
++- **THEN** `SamlSettings` é renderizado em `Settings > Security`
++- **AND** `SamlPaywall` não é renderizado
++
++#### Scenario: Paywall nunca exibido para SAML
++- **WHEN** `shouldShowPaywall('saml')` é avaliado em qualquer tipo de instalação
++- **THEN** o resultado é `false`
++
++#### Scenario: Formulário não exibido sem permissão de administrador
++- **WHEN** o usuário autenticado tem role `agent`
++- **THEN** `SamlSettings` não é renderizado em `Settings > Security`
++
++#### Scenario: Formulário não exibido quando feature desabilitada na conta
++- **WHEN** a conta não tem a feature `saml` habilitada no bitmap `feature_flags`
++- **THEN** `SamlSettings` não é renderizado
++- **AND** a mensagem `SAML_DISABLED_MESSAGE` é exibida no lugar
++
++#### Scenario: Outras features premium não são afetadas
++- **WHEN** `shouldShowPaywall` é avaliado para features como `sla`, `audit_logs` ou `custom_roles`
++- **THEN** o comportamento permanece idêntico ao estado anterior a esta mudança
+diff --git a/spec/controllers/installation/onboarding_controller_spec.rb b/spec/controllers/installation/onboarding_controller_spec.rb
+index 37a2d8822..b87609bd4 100644
+--- a/spec/controllers/installation/onboarding_controller_spec.rb
++++ b/spec/controllers/installation/onboarding_controller_spec.rb
+@@ -19,6 +19,29 @@ RSpec.describe 'Installation::Onboarding API', type: :request do
+         expect(response).to have_http_status(:success)
+         Redis::Alfred.delete(Redis::Alfred::CHATWOOT_INSTALLATION_ONBOARDING)
+       end
++
++      it 'shows the password context note when DISABLE_EMAIL_LOGIN=true' do
++        Redis::Alfred.set(Redis::Alfred::CHATWOOT_INSTALLATION_ONBOARDING, true)
++
++        with_modified_env DISABLE_EMAIL_LOGIN: 'true' do
++          get '/installation/onboarding'
++          expect(response.body).to include('/super_admin')
++          expect(response.body).to include('O login no aplicativo sera feito via SSO.')
++        end
++      ensure
++        Redis::Alfred.delete(Redis::Alfred::CHATWOOT_INSTALLATION_ONBOARDING)
++      end
++
++      it 'does not show the password context note when DISABLE_EMAIL_LOGIN=false' do
++        Redis::Alfred.set(Redis::Alfred::CHATWOOT_INSTALLATION_ONBOARDING, true)
++
++        with_modified_env DISABLE_EMAIL_LOGIN: 'false' do
++          get '/installation/onboarding'
++          expect(response.body).not_to include('O login no aplicativo sera feito via SSO.')
++        end
++      ensure
++        Redis::Alfred.delete(Redis::Alfred::CHATWOOT_INSTALLATION_ONBOARDING)
++      end
+     end
+   end
+ 
